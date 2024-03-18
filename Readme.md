@@ -5,8 +5,7 @@ Issues
 ----------
 Please submit any problems with rendering, with a lottie file, and ideally, what it _should_ look like, with a ticket in github issues.
 
-- Unity's ellipse renderer does not have 2D scaling, so is only scaled on the X.
-	- `// todo: render this as a path when required`
+- [Unity's ellipse renderer does not have 2D scaling, so is only scaled on the X.](https://github.com/NewChromantics/PopLottie.UnityPackage/issues/3)
 
 Usage
 -----------
@@ -23,7 +22,7 @@ Contributions for these are all welcome.
 	- Options to output variables/uniforms for animated parts, to allow future use in shaders, or manual interpolation in render-command-cache
 	- Options to output Editor/handle-control references back to layers & shapes to ease in-unity-editor editing
 - Correct timing for user to control 0th frame time.
-- `async` functions to play & wait for animations
+- [`async` functions to play & wait for animations](https://github.com/NewChromantics/PopLottie.UnityPackage/issues/2)
 - Looping controls
 - Preview render of assets
 - Swift, javascript
