@@ -15,7 +15,20 @@ Usage
 - Set the `Resource Filename` to a file within your `Assets/Resources/` folder. The filename needs to exclude the extension.
 	- We're promised future versions of unity will allow asset-selection, but for now, we cannot implement custom inspector drawers, so filenames must be set manually.
 
-
+Future Plans
+----------
+Contributions for these are all welcome.
+- Split BodyMovin parser from the renderer.
+	- Renderer create painter2d-render-commands for user (ie. the element) to cache at higher level.
+	- Options to output variables/uniforms for animated parts, to allow future use in shaders, or manual interpolation in render-command-cache
+	- Options to output Editor/handle-control references back to layers & shapes to ease in-unity-editor editing
+- Correct timing for user to control 0th frame time.
+- `async` functions to play & wait for animations
+- Looping controls
+- Preview render of assets
+- Swift, javascript
+- Shader renderer for use in texturing, projection, world space use.
+- Optimisation!
 
 Performance Notes
 -------------
