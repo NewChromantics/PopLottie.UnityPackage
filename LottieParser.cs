@@ -1057,19 +1057,25 @@ namespace PopLottie
 			public Color	Colour;
 		}
 		
-		public void Render(TimeSpan PlayTime, Painter2D Painter,Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
+		public RenderCommands.Shape[] Render(TimeSpan PlayTime, Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
 		{
 			//	get the time, move it to lottie-anim space and loop it
 			var Frame = lottie.TimeToFrame(PlayTime,Looped:true);
-			Render( Frame, Painter, ContentRect, EnableDebug, scaleMode );
+			return Render( Frame, ContentRect, EnableDebug, scaleMode );
 		}
 			
-		public void Render(FrameNumber Frame, Painter2D Painter,Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
+		public RenderCommands.Shape[] Render(FrameNumber Frame, Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
 		{
 			//Debug.Log($"Time = {Time.TotalSeconds} ({lottie.FirstKeyframe.TotalSeconds}...{lottie.LastKeyframe.TotalSeconds})");
 
 			//	work out the placement of the canvas - all the shapes are in THIS canvas space
 			Rect LottieCanvasRect = new Rect(0,0,lottie.w,lottie.h);
+
+			List<RenderCommands.Shape> RenderShapes = new ();
+			void AddRenderShape(RenderCommands.Shape NewShape)
+			{
+				RenderShapes.Add(NewShape);
+			}
 
 			//	in order to put holes in shapes, we need to do them all in one path
 			//	so do all the debug stuff on the side
@@ -1091,6 +1097,7 @@ namespace PopLottie
 				var b = transform.LocalToWorldPosition( new Vector2(rect.xMax,rect.yMin) );
 				var c = transform.LocalToWorldPosition( new Vector2(rect.xMax,rect.yMax) );
 				var d = transform.LocalToWorldPosition( new Vector2(rect.xMin,rect.yMax) );
+			/*
 				Painter.BeginPath();
 				Painter.MoveTo( a );
 				Painter.LineTo( b );
@@ -1099,6 +1106,7 @@ namespace PopLottie
 				Painter.ClosePath();
 				Painter.fillColor = colour;
 				Painter.Fill();
+				*/
 			}
 			
 			//	scale-to-canvas transformer
@@ -1122,7 +1130,21 @@ namespace PopLottie
 			if ( EnableDebug )
 				DrawRect(LottieCanvasRect, new Color(0,1,1,0.1f), RootTransformer );
 				
-			
+			List<RenderCommands.Path> CurrentPaths = new();
+			void BeginShape()
+			{
+				//	clean off old shape
+				if ( CurrentPaths.Count != 0 )
+					throw new Exception("Finished off old shape?");
+			}
+			void FinishLayerShape()
+			{
+				//	clean off old shape
+				if ( CurrentPaths.Count != 0 )
+				{
+					throw new Exception("Finished off old shape?");
+					}
+			}
 
 			void RenderGroup(ShapeGroup Group,Transformer ParentTransform,float LayerAlpha)
 			{
@@ -1144,35 +1166,49 @@ namespace PopLottie
 					AddGlobalDebugPoint( GlobalPosition, Uid, Colour, GlobalEnd );
 				}
 
-	
 				
-				void ApplyStyle()
+				void AddPath(RenderCommands.Path NewPath)
+				{
+					CurrentPaths.Add(NewPath);
+				}
+				
+				
+				void FinishShape()
 				{
 					var FillColour = GroupStyle.FillColour ?? Color.green;
 					var StrokeColour = GroupStyle.StrokeColour ?? Color.yellow;
 					FillColour.a *= GroupAlpha;
 					StrokeColour.a *= GroupAlpha;
-					Painter.fillColor = FillColour;
-					Painter.strokeColor = StrokeColour;
-					Painter.lineWidth = GroupTransform.LocalToWorldSize( GroupStyle.StrokeWidth ?? 1 );
+					var StrokeWidth = GroupTransform.LocalToWorldSize( GroupStyle.StrokeWidth ?? 1 );
+
+					var NewShape = new RenderCommands.Shape();
+					NewShape.Paths = CurrentPaths.ToArray();
 					if ( GroupStyle.IsStroked )
-						Painter.Stroke();
+					{
+						NewShape.StrokeColour = StrokeColour;
+						NewShape.StrokeWidth = StrokeWidth;
+					}
 					if ( GroupStyle.IsFilled )
-						Painter.Fill(FillRule.OddEven);
+					{
+						NewShape.FillColour = FillColour;
+					}
+					
+					CurrentPaths = new();
+					AddRenderShape(NewShape);
 				}
 				
 				void RenderChild(Shape Child)
 				{
 					//	force visible with debug
 					if ( !Child.Visible )
-						if ( !EnableDebug ) 
-							return;
+						return;
 				
 					if ( Child is ShapePath path )
 					{
 						var Trim = Group.GetPathTrim(Frame);
 						var Bezier = path.Path_Bezier.GetBezier(Frame);
 						var Points = Bezier.GetControlPoints(Trim);
+						var RenderPoints = new List<RenderCommands.BezierPoint>();
 						
 						void CurveToPoint(Bezier.ControlPoint Point,Bezier.ControlPoint PrevPoint)
 						{
@@ -1189,8 +1225,12 @@ namespace PopLottie
 							AddDebugPoint( Point.Position, 1, Color.green, cp0 );
 							AddDebugPoint( Point.Position, 2, Color.cyan, cp1 );
 
-							Painter.BezierCurveTo( ControlPoint0, ControlPoint1, VertexPosition  );
-							//Painter.LineTo( VertexPosition  );
+							var BezierPoint = new RenderCommands.BezierPoint();
+							BezierPoint.ControlPointIn = ControlPoint0;
+							BezierPoint.ControlPointOut = ControlPoint1;
+							BezierPoint.Position = VertexPosition;
+							RenderPoints.Add(BezierPoint);
+							//Painter.BezierCurveTo( ControlPoint0, ControlPoint1, VertexPosition  );
 						}
 						
 						for ( var p=0;	p<Points.Length;	p++ )
@@ -1202,7 +1242,13 @@ namespace PopLottie
 							//	skipping first one gives a more solid result, so wondering if
 							//	we need to be doing a mix of p and p+1...
 							if ( p==0 )
-								Painter.MoveTo(VertexPosition);
+							{
+								var BezierPoint = new RenderCommands.BezierPoint();
+								BezierPoint.ControlPointIn = VertexPosition;
+								BezierPoint.ControlPointOut = VertexPosition;
+								BezierPoint.Position = VertexPosition;
+								RenderPoints.Add(BezierPoint);
+							}
 							else
 								CurveToPoint(Point,PrevPoint);
 						}
@@ -1212,16 +1258,19 @@ namespace PopLottie
 							if ( Trim.IsDefault )
 							CurveToPoint( Points[0], Points[Points.Length-1] );
 						}
+						
+						AddPath( new RenderCommands.Path(RenderPoints) );
 					}
 					if ( Child is ShapeEllipse ellipse )
 					{
+						var RenderEllipse = new RenderCommands.Ellipse();
 						var EllipseSize = GroupTransform.LocalToWorldSize(ellipse.Size.GetValueVec2(Frame));
 						var LocalCenter = ellipse.Center.GetValueVec2(Frame);
 						var EllipseCenter = GroupTransform.LocalToWorldPosition(LocalCenter);
 						
-						//	todo: turn into a path as painter can't do non uniform ellipses!
-						var Radius = EllipseSize.x;
-						Painter.Arc( EllipseCenter, Radius, 0, 360 );
+						RenderEllipse.Center = EllipseCenter;
+						RenderEllipse.Radius = EllipseSize;
+						AddPath( new RenderCommands.Path(RenderEllipse) );
 						AddDebugPoint( LocalCenter, 0, Color.magenta );
 					}
 			
@@ -1242,7 +1291,7 @@ namespace PopLottie
 				//		but if we have layer->shape->group->group->shape we need to NOT break paths
 				if ( GroupStyleMaybe.HasValue )
 				{
-					Painter.BeginPath();
+					BeginShape();
 				}
 				
 				foreach ( var Child in Children )
@@ -1259,8 +1308,7 @@ namespace PopLottie
 				
 				if ( GroupStyleMaybe.HasValue )
 				{
-					ApplyStyle();
-					Painter.ClosePath();
+					FinishShape();
 				}
 			}
 		
@@ -1293,17 +1341,10 @@ namespace PopLottie
 				//	skip hidden layers
 				if ( LayerOpacity <= 0 )
 				{
-					if ( EnableDebug )
-					{
-						LayerOpacity = 0.1f;
-					}
-					else
-					{
-						continue;
-					}
+					continue;
 				}
 
-				Painter.BeginPath();
+				BeginShape();
 				//	render the shape
 				foreach ( var Shape in Layer.ChildrenBackToFront )
 				{
@@ -1323,11 +1364,12 @@ namespace PopLottie
 						Debug.LogException(e);
 					}
 				}
-				Painter.ClosePath();
+				FinishLayerShape();
 			}
 			
 			if ( EnableDebug )
 			{
+				/*
 				foreach ( var Point in DebugPoints )
 				{
 					var WorldStart = Point.Start;
@@ -1349,7 +1391,9 @@ namespace PopLottie
 					Painter.Stroke();
 					Painter.ClosePath();
 				}
+				*/
 			}
+			return RenderShapes.ToArray();
 		}
 		
 	}
