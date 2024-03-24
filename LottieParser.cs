@@ -828,7 +828,7 @@ namespace PopLottie
 			return Transform.GetAlpha(Frame);
 		}
 		
-		public ShapeStyle		GetShapeStyle(FrameNumber Frame)
+		public ShapeStyle?		GetShapeStyle(FrameNumber Frame)
 		{
 			var Fill = GetChild(ShapeType.Fill) as ShapeFillAndStroke;
 			var Stroke = GetChild(ShapeType.Stroke) as ShapeFillAndStroke;
@@ -842,6 +842,8 @@ namespace PopLottie
 				Style.StrokeColour = Stroke.GetColour(Frame);
 				Style.StrokeWidth = Stroke.GetWidth(Frame);
 			}
+			if ( Fill == null && Stroke == null )
+				return null;
 			return Style;
 		}
 
@@ -1070,7 +1072,8 @@ namespace PopLottie
 				//	elements (shapes) in the layer may be in the wrong order, so need to pre-extract style & transform
 				var GroupTransform = Group.GetTransformer(Frame);
 				GroupTransform.Parent = ParentTransform;
-				var GroupStyle = Group.GetShapeStyle(Frame);
+				var GroupStyleMaybe = Group.GetShapeStyle(Frame);
+				var GroupStyle = GroupStyleMaybe ?? new ShapeStyle();
 				var GroupAlpha = Group.GetAlpha(Frame);
 				GroupAlpha *= LayerAlpha;
 				
@@ -1125,6 +1128,7 @@ namespace PopLottie
 							AddDebugPoint( Point.Position, 2, Color.cyan, cp1 );
 
 							Painter.BezierCurveTo( ControlPoint0, ControlPoint1, VertexPosition  );
+							//Painter.LineTo( VertexPosition  );
 						}
 						
 						for ( var p=0;	p<Points.Length;	p++ )
@@ -1171,8 +1175,12 @@ namespace PopLottie
 					}
 				}
 				
-				//	gr: paths need to be per-layer for holes, but what if the style changes....
-				Painter.BeginPath();
+				//	gr: we need to break paths when styles change
+				//		but if we have layer->shape->group->group->shape we need to NOT break paths
+				if ( GroupStyleMaybe.HasValue )
+				{
+					Painter.BeginPath();
+				}
 				
 				foreach ( var Child in Children )
 				{
@@ -1186,8 +1194,11 @@ namespace PopLottie
 					}
 				}
 				
-				ApplyStyle();
-				Painter.ClosePath();
+				if ( GroupStyleMaybe.HasValue )
+				{
+					ApplyStyle();
+					Painter.ClosePath();
+				}
 			}
 		
 			//	layers go front to back
@@ -1229,6 +1240,7 @@ namespace PopLottie
 					}
 				}
 
+				Painter.BeginPath();
 				//	render the shape
 				foreach ( var Shape in Layer.ChildrenBackToFront )
 				{
@@ -1248,6 +1260,7 @@ namespace PopLottie
 						Debug.LogException(e);
 					}
 				}
+				Painter.ClosePath();
 			}
 			
 			if ( EnableDebug )
