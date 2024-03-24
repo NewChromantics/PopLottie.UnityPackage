@@ -6,6 +6,8 @@ Issues
 Please submit any problems with rendering, with a lottie file, and ideally, what it _should_ look like, with a ticket in github issues.
 
 - [Unity's ellipse renderer does not have 2D scaling, so is only scaled on the X.](https://github.com/NewChromantics/PopLottie.UnityPackage/issues/3)
+- Trim-Path shapes are not implemented
+- Rectangle shapes are not implemented
 
 Usage
 -----------
