@@ -1009,6 +1009,19 @@ namespace PopLottie
 			//	work out the placement of the canvas - all the shapes are in THIS canvas space
 			Rect LottieCanvasRect = new Rect(0,0,lottie.w,lottie.h);
 
+			//	in order to put holes in shapes, we need to do them all in one path
+			//	so do all the debug stuff on the side
+			List<DebugPoint> DebugPoints = new();
+			void AddGlobalDebugPoint(Vector2 Position,int Uid,Color Colour,Vector2? End=null)
+			{
+				var Point = new DebugPoint();
+				Point.Colour = Colour;
+				Point.Uid = Uid;
+				Point.Start = Position;
+				Point.End = End;
+				DebugPoints.Add(Point);
+			}
+			
 			void DrawRect(Rect rect,Color colour,Transformer transform=null)
 			{
 				transform = transform ?? new Transformer();
@@ -1061,19 +1074,13 @@ namespace PopLottie
 				var GroupAlpha = Group.GetAlpha(Frame);
 				GroupAlpha *= LayerAlpha;
 				
-	
-				//	to do holes in shapes, we need to do them all in one path
-				//	so do all the debug stuff on the side
-				List<DebugPoint> DebugPoints = new();
 				void AddDebugPoint(Vector2 Position,int Uid,Color Colour,Vector2? End=null)
 				{
-					var Point = new DebugPoint();
-					Point.Colour = Colour;
-					Point.Uid = Uid;
-					Point.Start = Position;
-					Point.End = End;
-					DebugPoints.Add(Point);
+					var GlobalPosition = GroupTransform.LocalToWorldPosition(Position);
+					Vector2? GlobalEnd = End!=null ? GroupTransform.LocalToWorldPosition(End.Value) : null;
+					AddGlobalDebugPoint( GlobalPosition, Uid, Colour, GlobalEnd );
 				}
+
 	
 				
 				void ApplyStyle()
@@ -1198,31 +1205,6 @@ namespace PopLottie
 					}
 				}
 
-				
-				if ( EnableDebug )
-				{
-					foreach ( var Point in DebugPoints )
-					{
-						var WorldStart = GroupTransform.LocalToWorldPosition(Point.Start);
-						Vector2? WorldEnd = Point.End.HasValue ? GroupTransform.LocalToWorldPosition(Point.End.Value) : null;
-						
-						Painter.lineWidth = 0.2f;
-						Painter.strokeColor = Point.Colour;
-						Painter.BeginPath();
-						Painter.MoveTo( WorldStart );
-						if ( WorldEnd is Vector2 end )
-						{
-							Painter.LineTo( end );
-							Painter.Arc( end, Point.HandleSize, 0.0f, 360.0f);
-						}
-						else
-						{
-							Painter.Arc( WorldStart, Point.HandleSize, 0.0f, 360.0f);
-						}
-						Painter.Stroke();
-						Painter.ClosePath();
-					}
-				}
 			}
 		
 			//	layers go front to back
@@ -1282,6 +1264,31 @@ namespace PopLottie
 					{
 						Debug.LogException(e);
 					}
+				}
+			}
+			
+			if ( EnableDebug )
+			{
+				foreach ( var Point in DebugPoints )
+				{
+					var WorldStart = Point.Start;
+					Vector2? WorldEnd = Point.End;
+					
+					Painter.lineWidth = 0.2f;
+					Painter.strokeColor = Point.Colour;
+					Painter.BeginPath();
+					Painter.MoveTo( WorldStart );
+					if ( WorldEnd is Vector2 end )
+					{
+						Painter.LineTo( end );
+						Painter.Arc( end, Point.HandleSize, 0.0f, 360.0f);
+					}
+					else
+					{
+						Painter.Arc( WorldStart, Point.HandleSize, 0.0f, 360.0f);
+					}
+					Painter.Stroke();
+					Painter.ClosePath();
 				}
 			}
 		}
