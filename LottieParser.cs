@@ -1100,9 +1100,17 @@ namespace PopLottie
 			var ScaleToCanvas = Stretch ? new Vector2( ScaleToCanvasWidth, ScaleToCanvasHeight ) : new Vector2( ScaleToCanvasUniform, ScaleToCanvasUniform );
 			
 			//	gr: work this out properly....
+			bool CenterAlign = true;
 			Transformer RootTransformer = new Transformer( ContentRect.min, Vector2.zero, ScaleToCanvas, 0f );
 			OutputFrame.CanvasRect = RootTransformer.LocalToWorldPosition(LottieCanvasRect);
-				
+			if ( CenterAlign )
+			{
+				var Centering = (ContentRect.max - OutputFrame.CanvasRect.max)/2f;
+				RootTransformer = new Transformer( ContentRect.min + Centering, Vector2.zero, ScaleToCanvas, 0f );
+				//	re-write canvas to make sure this is correct
+				OutputFrame.CanvasRect = RootTransformer.LocalToWorldPosition(LottieCanvasRect);
+			}
+			
 			List<RenderCommands.Path> CurrentPaths = new();
 			void BeginShape()
 			{
