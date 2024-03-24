@@ -824,6 +824,19 @@ namespace PopLottie
 			}
 			return WorldPosition;
 		}
+		public Rect	LocalToWorldPosition(Rect LocalRect)
+		{
+			var ParentMin = LocalToParentPosition(LocalRect.min);
+			var ParentMax = LocalToParentPosition(LocalRect.max);
+			var WorldMin = ParentMin;
+			var WorldMax = ParentMax;
+			if ( Parent is Transformer parent )
+			{
+				WorldMin = parent.LocalToWorldPosition(ParentMin);
+				WorldMax = parent.LocalToWorldPosition(ParentMax);
+			}
+			return Rect.MinMaxRect( WorldMin.x, WorldMin.y,WorldMax.x,WorldMax.y);
+		}
 		
 		public Vector2	LocalToWorldSize(Vector2 LocalSize)
 		{
@@ -1048,66 +1061,28 @@ namespace PopLottie
 			lottie = default;
 		}
 		
-		struct DebugPoint
-		{
-			public Vector2	Start;
-			public Vector2?	End;			//	if true, draw handle here
-			public int		Uid;			//	see if we can automatically do this, but different sizes so we see overlaps
-			public float	HandleSize => 1.0f + ((float)Uid*0.3f);
-			public Color	Colour;
-		}
 		
-		public RenderCommands.Shape[] Render(TimeSpan PlayTime, Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
+		
+		public RenderCommands.AnimationFrame Render(TimeSpan PlayTime, Rect ContentRect,ScaleMode scaleMode)
 		{
 			//	get the time, move it to lottie-anim space and loop it
 			var Frame = lottie.TimeToFrame(PlayTime,Looped:true);
-			return Render( Frame, ContentRect, EnableDebug, scaleMode );
+			return Render( Frame, ContentRect, scaleMode );
 		}
 			
-		public RenderCommands.Shape[] Render(FrameNumber Frame, Rect ContentRect,bool EnableDebug,ScaleMode scaleMode)
+		public RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
 		{
 			//Debug.Log($"Time = {Time.TotalSeconds} ({lottie.FirstKeyframe.TotalSeconds}...{lottie.LastKeyframe.TotalSeconds})");
 
 			//	work out the placement of the canvas - all the shapes are in THIS canvas space
 			Rect LottieCanvasRect = new Rect(0,0,lottie.w,lottie.h);
 
-			List<RenderCommands.Shape> RenderShapes = new ();
+			var OutputFrame = new RenderCommands.AnimationFrame();
 			void AddRenderShape(RenderCommands.Shape NewShape)
 			{
-				RenderShapes.Add(NewShape);
+				OutputFrame.AddShape(NewShape);
 			}
 
-			//	in order to put holes in shapes, we need to do them all in one path
-			//	so do all the debug stuff on the side
-			List<DebugPoint> DebugPoints = new();
-			void AddGlobalDebugPoint(Vector2 Position,int Uid,Color Colour,Vector2? End=null)
-			{
-				var Point = new DebugPoint();
-				Point.Colour = Colour;
-				Point.Uid = Uid;
-				Point.Start = Position;
-				Point.End = End;
-				DebugPoints.Add(Point);
-			}
-			
-			void DrawRect(Rect rect,Color colour,Transformer transform=null)
-			{
-				transform = transform ?? new Transformer();
-				var a = transform.LocalToWorldPosition( new Vector2(rect.xMin,rect.yMin) );
-				var b = transform.LocalToWorldPosition( new Vector2(rect.xMax,rect.yMin) );
-				var c = transform.LocalToWorldPosition( new Vector2(rect.xMax,rect.yMax) );
-				var d = transform.LocalToWorldPosition( new Vector2(rect.xMin,rect.yMax) );
-			/*
-				Painter.BeginPath();
-				Painter.MoveTo( a );
-				Painter.LineTo( b );
-				Painter.LineTo( c );
-				Painter.LineTo( d );
-				Painter.ClosePath();
-				Painter.fillColor = colour;
-				Painter.Fill();
-				*/
-			}
 			
 			//	scale-to-canvas transformer
 			float ExtraScale = 1;	//	for debug zooming
@@ -1126,9 +1101,7 @@ namespace PopLottie
 			
 			//	gr: work this out properly....
 			Transformer RootTransformer = new Transformer( ContentRect.min, Vector2.zero, ScaleToCanvas, 0f );
-			//Transformer RootTransformer = new Transformer( Vector2.zero, Vector2.zero, Vector2.one);
-			if ( EnableDebug )
-				DrawRect(LottieCanvasRect, new Color(0,1,1,0.1f), RootTransformer );
+			OutputFrame.CanvasRect = RootTransformer.LocalToWorldPosition(LottieCanvasRect);
 				
 			List<RenderCommands.Path> CurrentPaths = new();
 			void BeginShape()
@@ -1143,7 +1116,7 @@ namespace PopLottie
 				if ( CurrentPaths.Count != 0 )
 				{
 					throw new Exception("Finished off old shape?");
-					}
+				}
 			}
 
 			void RenderGroup(ShapeGroup Group,Transformer ParentTransform,float LayerAlpha)
@@ -1159,13 +1132,6 @@ namespace PopLottie
 				var GroupAlpha = Group.GetAlpha(Frame);
 				GroupAlpha *= LayerAlpha;
 				
-				void AddDebugPoint(Vector2 Position,int Uid,Color Colour,Vector2? End=null)
-				{
-					var GlobalPosition = GroupTransform.LocalToWorldPosition(Position);
-					Vector2? GlobalEnd = End!=null ? GroupTransform.LocalToWorldPosition(End.Value) : null;
-					AddGlobalDebugPoint( GlobalPosition, Uid, Colour, GlobalEnd );
-				}
-
 				
 				void AddPath(RenderCommands.Path NewPath)
 				{
@@ -1221,16 +1187,11 @@ namespace PopLottie
 							var ControlPoint0 = GroupTransform.LocalToWorldPosition(cp0);
 							var ControlPoint1 = GroupTransform.LocalToWorldPosition(cp1);
 							
-							AddDebugPoint( Point.Position, 0, Color.red );
-							AddDebugPoint( Point.Position, 1, Color.green, cp0 );
-							AddDebugPoint( Point.Position, 2, Color.cyan, cp1 );
-
 							var BezierPoint = new RenderCommands.BezierPoint();
 							BezierPoint.ControlPointIn = ControlPoint0;
 							BezierPoint.ControlPointOut = ControlPoint1;
 							BezierPoint.Position = VertexPosition;
 							RenderPoints.Add(BezierPoint);
-							//Painter.BezierCurveTo( ControlPoint0, ControlPoint1, VertexPosition  );
 						}
 						
 						for ( var p=0;	p<Points.Length;	p++ )
@@ -1271,7 +1232,6 @@ namespace PopLottie
 						RenderEllipse.Center = EllipseCenter;
 						RenderEllipse.Radius = EllipseSize;
 						AddPath( new RenderCommands.Path(RenderEllipse) );
-						AddDebugPoint( LocalCenter, 0, Color.magenta );
 					}
 			
 					if ( Child is ShapeGroup subgroup )
@@ -1367,33 +1327,7 @@ namespace PopLottie
 				FinishLayerShape();
 			}
 			
-			if ( EnableDebug )
-			{
-				/*
-				foreach ( var Point in DebugPoints )
-				{
-					var WorldStart = Point.Start;
-					Vector2? WorldEnd = Point.End;
-					
-					Painter.lineWidth = 0.2f;
-					Painter.strokeColor = Point.Colour;
-					Painter.BeginPath();
-					Painter.MoveTo( WorldStart );
-					if ( WorldEnd is Vector2 end )
-					{
-						Painter.LineTo( end );
-						Painter.Arc( end, Point.HandleSize, 0.0f, 360.0f);
-					}
-					else
-					{
-						Painter.Arc( WorldStart, Point.HandleSize, 0.0f, 360.0f);
-					}
-					Painter.Stroke();
-					Painter.ClosePath();
-				}
-				*/
-			}
-			return RenderShapes.ToArray();
+			return OutputFrame;
 		}
 		
 	}

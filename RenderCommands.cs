@@ -23,6 +23,23 @@ namespace PopLottie
 			public Vector2	Radius;
 		}
 		
+		public struct DebugPoint
+		{
+			public Vector2	Start;
+			public Vector2?	End;			//	if true, draw handle here
+			public int		Uid;			//	see if we can automatically do this, but different sizes so we see overlaps
+			public float	HandleSize => 1.0f + ((float)Uid*0.3f);
+			public Color	Colour;
+			
+			public DebugPoint(Vector2 Position,int Uid,Color Colour,Vector2? End=null)
+			{
+				this.Start = Position;
+				this.Uid = Uid;
+				this.Colour = Colour;
+				this.End = End;
+			}
+		}
+		
 		public struct Path
 		{
 			public BezierPoint[]	BezierPath;
@@ -71,6 +88,103 @@ namespace PopLottie
 					}
 				}
 			}
+			
+			public void				EnumDebugPoints(Action<DebugPoint> EnumDebugPoint)
+			{
+				if ( EllipsePath is Ellipse e )
+				{
+					EnumDebugPoint( new DebugPoint(e.Center,0,Color.green) );
+					EnumDebugPoint( new DebugPoint(e.Center,1,Color.yellow, e.Center+e.Radius ) );
+				}
+				else if ( BezierPath?.Length > 0 )
+				{
+					foreach (var Point in BezierPath)
+					{
+						EnumDebugPoint( new DebugPoint(Point.Position,0,Color.red,Point.ControlPointIn) );
+						EnumDebugPoint( new DebugPoint(Point.Position,1,Color.green) );
+						EnumDebugPoint( new DebugPoint(Point.Position,2,Color.cyan,Point.ControlPointOut) );
+					}
+				}
+				else if ( LinearPath?.Length > 0 )
+				{
+					foreach (var Point in LinearPath)
+					{
+						EnumDebugPoint( new DebugPoint(Point,0,Color.green) );
+					}
+				}
+			}
+		}
+		
+		public struct AnimationFrame
+		{
+			public Rect			CanvasRect;	//	rect of the canvas of the animation, kept for debug
+			public List<Shape>	Shapes;
+			
+			public void AddShape(Shape shape)
+			{
+				Shapes = Shapes ?? new ();
+				Shapes.Add(shape);
+			}
+			
+			public void		Render(UnityEngine.UIElements.Painter2D Painter)
+			{
+				foreach (var Shape in Shapes)
+				{
+					Shape.Render(Painter);
+				}
+			}
+			
+			public void		RenderDebug(UnityEngine.UIElements.Painter2D Painter)
+			{
+				void DrawDebugPoint(DebugPoint Point)
+				{
+					var WorldStart = Point.Start;
+					Vector2? WorldEnd = Point.End;
+					
+					Painter.lineWidth = 0.2f;
+					Painter.strokeColor = Point.Colour;
+					Painter.BeginPath();
+					Painter.MoveTo( WorldStart );
+					if ( WorldEnd is Vector2 end )
+					{
+						Painter.LineTo( end );
+						Painter.Arc( end, Point.HandleSize, 0.0f, 360.0f);
+					}
+					else
+					{
+						Painter.Arc( WorldStart, Point.HandleSize, 0.0f, 360.0f);
+					}
+					Painter.Stroke();
+					Painter.ClosePath();
+				}
+				
+				void DrawRect(Rect rect,Color Colour)
+				{
+					Painter.BeginPath();
+					var tl = rect.min;
+					var tr = new Vector2(rect.xMax,rect.yMin);
+					var br = rect.max;
+					var bl = new Vector2(rect.xMin,rect.yMax);
+					Painter.MoveTo( tl );
+					Painter.LineTo( tr );
+					Painter.LineTo( br );
+					Painter.LineTo( bl );
+					Painter.LineTo( tl );
+					Painter.fillColor = Colour;
+					Painter.Fill();
+					Painter.ClosePath();
+				}
+				DrawRect(this.CanvasRect, new Color(0,0,1,0.1f) );
+				
+				foreach (var Shape in Shapes)
+				{
+					foreach (var Path in Shape.Paths)
+					{
+						Path.EnumDebugPoints(DrawDebugPoint);
+					}
+				}
+			}
+			
 		}
 		
 		public struct Shape
@@ -81,7 +195,7 @@ namespace PopLottie
 			public Color?			StrokeColour;
 			public float			StrokeWidth;
 			
-			public void					Render(UnityEngine.UIElements.Painter2D Painter)
+			public void				Render(UnityEngine.UIElements.Painter2D Painter)
 			{
 				Painter.BeginPath();
 
@@ -104,6 +218,11 @@ namespace PopLottie
 				}
 				
 				Painter.ClosePath();
+			}
+			
+			public void				RenderDebug(UnityEngine.UIElements.Painter2D Painter)
+			{
+				
 			}
 			
 		}

@@ -214,11 +214,11 @@ namespace PopLottie
 			try
 			{
 				var Time = GetTime();
-				var Shapes = LottieAnimation.Render( Time, contentRect, enableDebug, CanvasScaleMode );
-				foreach( var Shape in Shapes )
-				{
-					Shape.Render(context.painter2D);
-				}
+				//	gr: this result is now cacheable
+				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
+				Frame.Render(context.painter2D);
+				if ( enableDebug )
+					Frame.RenderDebug(context.painter2D);
 			}
 			catch(Exception e)
 			{
