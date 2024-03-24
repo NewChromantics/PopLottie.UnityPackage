@@ -20,7 +20,6 @@ Future Plans
 ----------
 Contributions for these are all welcome.
 - Split BodyMovin parser from the renderer.
-	- Renderer create painter2d-render-commands for user (ie. the element) to cache at higher level.
 	- Options to output variables/uniforms for animated parts, to allow future use in shaders, or manual interpolation in render-command-cache
 	- Options to output Editor/handle-control references back to layers & shapes to ease in-unity-editor editing
 - Correct timing for user to control 0th frame time.
