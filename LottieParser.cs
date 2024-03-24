@@ -414,7 +414,7 @@ namespace PopLottie
 				throw new Exception($"{GetType().Name}::GetValue missing frames"); 
 				
 			var (Prev,Lerp,Next) = IFrame.GetPrevNextFramesAtFrame(Frames,Frame);
-			return Prev.LerpTo( Next, Lerp.Value );
+			return Prev.LerpTo( Next, Lerp );
 		}
 	}
 	
