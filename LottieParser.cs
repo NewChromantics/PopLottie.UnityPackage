@@ -482,10 +482,11 @@ namespace PopLottie
 		public bool		c;
 		public bool		Closed => c;
 
-		public ControlPoint[]	GetControlPoints()
+		public ControlPoint[]	GetControlPoints(PathTrim Trim)
 		{
-			var Points = new ControlPoint[v.Count];
-			for ( var Index=0;	Index<v.Count;	Index++ )
+			var PointCount = v.Count;
+			var Points = new ControlPoint[PointCount];
+			for ( var Index=0;	Index<PointCount;	Index++ )
 			{
 				Points[Index].Position.x = v[Index][0];
 				Points[Index].Position.y = v[Index][1];
@@ -494,6 +495,27 @@ namespace PopLottie
 				Points[Index].OutTangent.x = o[Index][0];
 				Points[Index].OutTangent.y = o[Index][1];
 			}
+			
+			//	todo: trim points
+			//		need to work out where in the path we cut, then calc new control points
+			//	if there's an offset... we need to calculate ALL of them?
+			if ( Trim.IsDefault )
+				return Points;
+
+			//	gr: this doesn't wrap. if start > end, then it goes backwards
+			//		but offset does make it wrap
+			//	gr: the values are in path-distance (0-1), rather than indexes
+			float StartTime = (Trim.Start + Trim.Offset);
+			float EndTime = (Trim.End + Trim.Offset);
+			if ( Trim.End < Trim.Start )
+			{
+				var Temp = StartTime;
+				StartTime = EndTime;
+				EndTime = Temp;
+			}
+			
+			//	todo: slice up bezier. Unfortunetly as the offsets are in distance, not control points
+			//		we have to calculate where to cut, but hopefully that still leaves just two cut segments and then originals inbetween
 			return Points;
 		}
 		
@@ -639,6 +661,23 @@ namespace PopLottie
 		public AnimatedBezier	Path_Bezier => ks;
 	}
 	
+	public struct PathTrim
+	{
+		public float	Start;
+		public float	End;
+		public float	Offset;
+		
+		public bool		IsDefault => Start==0f && End==1f;
+		public static PathTrim GetDefault()
+		{
+			PathTrim Default;
+			Default.Start = 0;
+			Default.Offset = 0;
+			Default.End = 1f;
+			return Default;
+		}
+	}
+	
 	[Serializable] public class ShapeTrimPath : Shape
 	{
 		public AnimatedNumber	s;	//	segment start
@@ -646,6 +685,17 @@ namespace PopLottie
 		public AnimatedNumber	o;	//	offset
 		public int				m;
 		public int				TrimMultipleShapes => m;
+		
+		public PathTrim			GetTrim(FrameNumber Frame)
+		{
+			//	https://lottiefiles.github.io/lottie-docs/shapes/#trim-path
+			//	start & end is 0-100%, offset is an angle up to 360
+			var Trim = PathTrim.GetDefault();
+			Trim.Start = s.GetValue(Frame) / 100f;
+			Trim.End = e.GetValue(Frame) / 100f;
+			Trim.Offset = o.GetValue(Frame) / 360f;	
+			return Trim;
+		}
 	}
 		
 				
@@ -826,6 +876,16 @@ namespace PopLottie
 			if ( Transform == null )
 				return 1.0f;
 			return Transform.GetAlpha(Frame);
+		}
+		
+		public PathTrim	GetPathTrim(FrameNumber Frame)
+		{
+			var TrimShape = GetChild(ShapeType.TrimPath) as ShapeTrimPath;
+			if ( TrimShape != null )
+			{
+				return TrimShape.GetTrim(Frame);
+			}
+			return PathTrim.GetDefault();
 		}
 		
 		public ShapeStyle?		GetShapeStyle(FrameNumber Frame)
@@ -1110,8 +1170,10 @@ namespace PopLottie
 				
 					if ( Child is ShapePath path )
 					{
+						var Trim = Group.GetPathTrim(Frame);
 						var Bezier = path.Path_Bezier.GetBezier(Frame);
-						var Points = Bezier.GetControlPoints();
+						var Points = Bezier.GetControlPoints(Trim);
+						
 						void CurveToPoint(Bezier.ControlPoint Point,Bezier.ControlPoint PrevPoint)
 						{
 							//	gr: working out this took quite a bit of time.
@@ -1145,8 +1207,9 @@ namespace PopLottie
 								CurveToPoint(Point,PrevPoint);
 						}
 						
-						if ( Bezier.Closed )
+						if ( Bezier.Closed && Points.Length > 1 )
 						{
+							if ( Trim.IsDefault )
 							CurveToPoint( Points[0], Points[Points.Length-1] );
 						}
 					}
