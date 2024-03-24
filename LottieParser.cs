@@ -1171,14 +1171,11 @@ namespace PopLottie
 					}
 				}
 				
-				bool RenderGroupsAfter = true;
-
+				//	gr: paths need to be per-layer for holes, but what if the style changes....
 				Painter.BeginPath();
 				
 				foreach ( var Child in Children )
 				{
-					if ( Child is ShapeGroup && RenderGroupsAfter )
-						continue;
 					try
 					{
 						RenderChild(Child);
@@ -1188,23 +1185,9 @@ namespace PopLottie
 						Debug.LogException(e);
 					}
 				}
+				
 				ApplyStyle();
 				Painter.ClosePath();
-			
-				foreach ( var Child in Children )
-				{
-					if ( !(Child is ShapeGroup)  || !RenderGroupsAfter )
-						continue;
-					try
-					{
-						RenderChild(Child);
-					}
-					catch(Exception e)
-					{
-						Debug.LogException(e);
-					}
-				}
-
 			}
 		
 			//	layers go front to back
