@@ -219,8 +219,8 @@ namespace PopLottie
 			else if ( reader.TokenType == JsonToken.Integer || reader.TokenType == JsonToken.Float )
 			{
 				var Value = reader.Value;
-				var Number = (reader.TokenType == JsonToken.Integer) ? (long)Value : (float)Value;
-				existingValue.AddFrame(new float[]{Number});
+				var Number = (reader.TokenType == JsonToken.Integer) ? (long)Value : (double)Value;
+				existingValue.AddFrame(new float[]{(float)Number});
 			}
 			else 
 			{
