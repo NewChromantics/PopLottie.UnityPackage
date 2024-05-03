@@ -8,6 +8,7 @@ Please submit any problems with rendering, with a lottie file, and ideally, what
 - [Unity's ellipse renderer does not have 2D scaling, so is only scaled on the X.](https://github.com/NewChromantics/PopLottie.UnityPackage/issues/3)
 - Trim-Path shapes are not implemented
 - Rectangle shapes are not implemented
+- Text layers not implemented
 
 Usage
 -----------
@@ -26,7 +27,8 @@ Contributions for these are all welcome.
 - [`async` functions to play & wait for animations](https://github.com/NewChromantics/PopLottie.UnityPackage/issues/2)
 - Looping controls
 - Preview render of assets
-- Swift, javascript
+- [Swift Version](https://github.com/NewChromantics/PopLottie.SwiftPackage)
+- Javascript version
 - Shader renderer for use in texturing, projection, world space use.
 - Optimisation!
 
