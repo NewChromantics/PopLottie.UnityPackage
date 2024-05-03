@@ -1,6 +1,6 @@
 {
   "name": "com.newchromantics.poplottie",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "displayName": "PopLottie",
   "description": "SDK to use Lottie/Bodymovin animations in Unity UIToolkit",
   "author": {
