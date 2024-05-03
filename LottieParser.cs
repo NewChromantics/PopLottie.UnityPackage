@@ -164,6 +164,7 @@ namespace PopLottie
 	
 	
 	
+	[UnityEngine.Scripting.Preserve]
 	class KeyframedConvertor<KeyFramedType,FrameType> : JsonConverter<KeyFramedType> where KeyFramedType : IKeyframed<FrameType>
 	{
 		static float GetValue(JToken Value)
@@ -572,6 +573,7 @@ namespace PopLottie
 	}
 	
 
+	[UnityEngine.Scripting.Preserve]
 	public class ShapeConvertor : JsonConverter<ShapeWrapper>
 	{
 		public override void WriteJson(JsonWriter writer, ShapeWrapper value, JsonSerializer serializer)
