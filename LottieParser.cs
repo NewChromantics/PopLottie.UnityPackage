@@ -48,6 +48,24 @@ namespace PopLottie
 		//	keyframes when NOT split vector
 		public Keyframed_FloatArray	k;
 		
+		public bool		IsStatic()
+		{
+			if ( !Animated )
+				return true;
+			
+			//	we probe further, just in case some of the curves/keyframes are static
+			//	with lerps between the same values, or only one frame number
+			if ( !k.IsStatic() )
+				return false;
+
+			//	gr: only need to check x/y if split vector really...
+			if ( !x.IsStatic() )
+				return false;
+			if ( !y.IsStatic() )
+				return false;
+			return true;
+		}
+		
 		public float			GetValue(FrameNumber Frame)
 		{
 			if ( SplitVector )
@@ -84,7 +102,7 @@ namespace PopLottie
 	}
 
 
-
+	//	gr: I've realised this is exactly the same struct as Frame_FloatArray
 	[Serializable] public struct Frame_Float : IFrame
 	{
 		public ValueCurve	i;	//	ease in value
@@ -94,6 +112,29 @@ namespace PopLottie
 		public float[]		e;	//	end value
 		public FrameNumber	Frame => t;
 		public bool			IsTerminatingFrame => s==null;
+		
+		bool				IsSameStartAndEndValues()
+		{
+			for ( int i=0;	i<s.Length;	i++ )
+			{
+				if ( s[i] != e[i] )
+					return false; 
+			}
+			return true;
+		}
+		
+		public bool			IsStatic()
+		{
+			if ( IsTerminatingFrame )
+				return true;
+				
+			//	same start & end values? animating between nothing!
+			if ( !IsSameStartAndEndValues() )
+				return false;
+
+			//	todo: can we detect static curves?
+			return false;
+		}
 		
 		public float		LerpTo(Frame_Float Next,float? Lerp)
 		{
@@ -135,6 +176,29 @@ namespace PopLottie
 		public float[]		e;	//	end value
 		public FrameNumber	Frame	=> t;
 		public bool			IsTerminatingFrame => s==null;
+		
+		bool				IsSameStartAndEndValues()
+		{
+			for ( int i=0;	i<s.Length;	i++ )
+			{
+				if ( s[i] != e[i] )
+					return false; 
+			}
+			return true;
+		}
+		
+		public bool			IsStatic()
+		{
+			if ( IsTerminatingFrame )
+				return true;
+				
+			//	same start & end values? animating between nothing!
+			if ( !IsSameStartAndEndValues() )
+				return false;
+
+			//	todo: can we detect static curves?
+			return false;
+		}
 			
 		public float[]		LerpTo(Frame_FloatArray Next,float? Lerp)
 		{
@@ -390,6 +454,24 @@ namespace PopLottie
 	{
 		List<Frame_Float>		Frames;
 
+		public bool IsStatic()
+		{
+			//	shouldn't really have zero frames... this should error at constructoion
+			if ( Frames.Count == 0 )
+				return true;
+			//	gr; if we only have 1 frame (or 1 +terminator?)
+			//		and it has no curve... then we're static?
+			bool OneFrame = Frames.Count == 1;
+			if ( Frames.Count == 2 && Frames[1].IsTerminatingFrame )
+				OneFrame = true;
+			
+			if ( OneFrame && Frames[0].IsStatic() )
+				return true;
+			
+			//	todo: more extensive check, if all frames have same start & end values
+			return false;
+		}
+		
 		public void AddFrame(float[] Values)
 		{
 			var Frame = new Frame_Float();
@@ -425,6 +507,24 @@ namespace PopLottie
 	public struct Keyframed_FloatArray : IKeyframed<Frame_FloatArray>
 	{
 		List<Frame_FloatArray>		Frames;
+		
+		public bool IsStatic()
+		{
+			//	shouldn't really have zero frames... this should error at constructoion
+			if ( Frames.Count == 0 )
+				return true;
+			//	gr; if we only have 1 frame (or 1 +terminator?)
+			//		and it has no curve... then we're static?
+			bool OneFrame = Frames.Count == 1;
+			if ( Frames.Count == 2 && Frames[1].IsTerminatingFrame )
+				OneFrame = true;
+			
+			if ( OneFrame && Frames[0].IsStatic() )
+				return true;
+			
+			//	todo: more extensive check, if all frames have same start & end values
+			return false;
+		}
 
 		public void AddFrame(float[] Numbers)
 		{
@@ -467,6 +567,14 @@ namespace PopLottie
 		public bool			Animated => a!=0;
 		
 		public Keyframed_Float	k;	//	frames
+		
+		public bool			IsStatic()
+		{
+			//	we could just look at .Animated, but potentially the frames/curves are static too
+			if ( !Animated )
+				return true;
+			return k.IsStatic();
+		}
 		
 		public float		GetValue(FrameNumber Frame)
 		{
@@ -532,9 +640,18 @@ namespace PopLottie
 	{
 		public int			a;
 		public bool			Animated => a!=0;
-		//	if not animated, k==Vector3
+		
+		//	todo: keyframed beziers
 		public Bezier		k;	//	frames
 		public int			ix;	//	property index
+		
+		public bool			IsStatic()
+		{
+			if ( !Animated )
+				return true;
+			//	todo: keyframed beziers
+			return true;
+		}
 		
 		public Bezier		GetBezier(FrameNumber Frame)
 		{
@@ -546,17 +663,29 @@ namespace PopLottie
 	{
 		public int			a;
 		public bool			Animated => a!=0;
-		//	if not animated, k==Vector3
+		
+		//	todo: keyframed colours
 		public float[]		k;	//	4 elements 0..1
 		public int			ix;	//	property index
+		
+		public bool			IsStatic()
+		{
+			if ( !Animated )
+				return true;
+			//	todo: keyframed colours
+			return true;
+		}
 		
 		public Color		GetColour(FrameNumber Frame)
 		{
 			if ( Animated )
-				Debug.Log($"todo: animating colour");
+				Debug.LogWarning($"todo: keyframed colour");
 			var Alpha = k.Length == 4 ? k[3] : 1;
 			if ( k.Length < 3 )
+			{
+				Debug.LogWarning($"Colour with fewer than 3(${k.Length}) components");
 				return Color.magenta;
+			}
 			return new Color(k[0],k[1],k[2],Alpha);
 		}
 	}
@@ -581,43 +710,33 @@ namespace PopLottie
 			throw new NotImplementedException();
 		}
 		
+		Shape AllocateShape(ShapeType shapeType,JObject ShapeObject,JsonSerializer serializer)
+		{
+			switch (shapeType)
+			{
+				case ShapeType.Ellipse:		return ShapeObject.ToObject<ShapeEllipse>(serializer);
+				case ShapeType.Fill:		return ShapeObject.ToObject<ShapeFillAndStroke>(serializer);
+				case ShapeType.Stroke:		return ShapeObject.ToObject<ShapeFillAndStroke>(serializer);
+				case ShapeType.Transform:	return ShapeObject.ToObject<ShapeTransform>(serializer);
+				case ShapeType.Group:		return ShapeObject.ToObject<ShapeGroup>(serializer);
+				case ShapeType.Path:		return ShapeObject.ToObject<ShapePath>(serializer);
+				case ShapeType.TrimPath:	return ShapeObject.ToObject<ShapeTrimPath>(serializer);
+				
+				default:
+					throw new Exception($"AllocateShape Unhandled shape type {shapeType}");
+			}
+		}
+		
 		public override ShapeWrapper ReadJson(JsonReader reader, Type objectType, ShapeWrapper existingValue, bool hasExistingValue, JsonSerializer serializer)
 		{
 			var ShapeObject = JObject.Load(reader);
-			var ShapeBase = new Shape();
+			var ShapeBase = new ShapeMetaOnly();
 			ShapeBase.ty = ShapeObject["ty"].Value<String>();
 			
 			//	now based on type, serialise
-			if ( ShapeBase.Type == ShapeType.Ellipse )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeEllipse>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.Fill )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeFillAndStroke>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.Stroke )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeFillAndStroke>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.Transform )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeTransform>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.Group )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeGroup>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.Path )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapePath>(serializer);
-			}
-			else if ( ShapeBase.Type == ShapeType.TrimPath )
-			{
-				ShapeBase = ShapeObject.ToObject<ShapeTrimPath>(serializer);
-			}
-
-			existingValue.TheShape = ShapeBase;
+			var OutputShape = AllocateShape(ShapeBase.Type,ShapeObject,serializer);
+			existingValue.TheShape = OutputShape;
+			
 			return existingValue;
 		}
 	}
@@ -627,9 +746,10 @@ namespace PopLottie
 	{
 		public Shape		TheShape;
 		public ShapeType	Type => TheShape.Type; 
+		public bool			IsStatic()	{	return TheShape.IsStatic();	}
 	}
 
-	[Serializable] public class Shape 
+	[Serializable] public abstract class Shape 
 	{
 		public int			ind;//	?
 		public int			np;		//	number of properties
@@ -655,12 +775,28 @@ namespace PopLottie
 			"tm" => ShapeType.TrimPath,
 			_ => throw new Exception($"Unknown type {ty}")
 		};
+		
+		public abstract bool IsStatic();
+	}
+	
+	//	only used in decoder to get base meta, but allows us to keep Shape abstract
+	[Serializable] class ShapeMetaOnly : Shape
+	{
+		public override bool IsStatic()
+		{
+			throw new Exception($"An instance of this class should never get to a point where it's tested for being static");
+		}
 	}
 	
 	[Serializable] public class ShapePath : Shape
 	{
 		public AnimatedBezier	ks;	//	bezier for path
 		public AnimatedBezier	Path_Bezier => ks;
+		
+		public override bool	IsStatic()	
+		{
+			return Path_Bezier.IsStatic();
+		}
 	}
 	
 	public struct PathTrim
@@ -688,6 +824,17 @@ namespace PopLottie
 		public int				m;
 		public int				TrimMultipleShapes => m;
 		
+		public override bool	IsStatic()
+		{
+			if ( !s.IsStatic() )
+				return false;
+			if ( !e.IsStatic() )
+				return false;
+			if ( !o.IsStatic() )
+				return false;
+			return true;
+		}
+		
 		public PathTrim			GetTrim(FrameNumber Frame)
 		{
 			//	https://lottiefiles.github.io/lottie-docs/shapes/#trim-path
@@ -710,6 +857,17 @@ namespace PopLottie
 		public AnimatedNumber	o;	//	opacity? 
 		public AnimatedNumber	w;	//	width
 		public AnimatedNumber	Stroke_Width => w;
+		
+		public override bool	IsStatic()
+		{
+			if ( !Fill_Colour.IsStatic() )
+				return false;
+			if ( !Stroke_Colour.IsStatic() )
+				return false;
+			if ( !Stroke_Width.IsStatic() )
+				return false;
+			return true;
+		}
 		
 		public float			GetWidth(FrameNumber Frame)
 		{
@@ -736,6 +894,21 @@ namespace PopLottie
 		public AnimatedVector	r;	//	rotation
 		public AnimatedNumber	o;	//	opacity
 		
+		public override bool	IsStatic()
+		{
+			if ( !p.IsStatic() )	
+				return false;
+			if ( !a.IsStatic() )	
+				return false;
+			if ( !s.IsStatic() )	
+				return false;
+			if ( !r.IsStatic() )	
+				return false;
+			if ( !o.IsStatic() )	
+				return false;
+			return true;
+		}
+		
 		public Transformer	GetTransformer(FrameNumber Frame)
 		{
 			var Anchor = a.GetValueVec2(Frame);
@@ -761,6 +934,16 @@ namespace PopLottie
 		public AnimatedVector	p;
 		public AnimatedVector	Size => s;	
 		public AnimatedVector	Center => p;	
+		
+		public override bool	IsStatic()
+		{
+			if ( !Size.IsStatic() )
+				return false;
+			if ( !Center.IsStatic() )
+				return false;
+			return true;
+		}
+		
 		
 	}
 	
@@ -866,6 +1049,16 @@ namespace PopLottie
 		public IEnumerable<Shape>		ChildrenFrontToBack => it.Select( sw => sw.TheShape );
 		public IEnumerable<Shape>		ChildrenBackToFront => ChildrenFrontToBack.Reverse();
 		
+		public override bool	IsStatic()
+		{
+			foreach (var Child in it )
+			{
+				if ( !Child.IsStatic() )
+					return false;
+			}
+			return true;
+		}
+
 		Shape				GetChild(ShapeType MatchType)
 		{
 			//	handle multiple instances
@@ -941,6 +1134,27 @@ namespace PopLottie
 				*/
 			return true;
 		}
+		
+		public bool IsStatic()
+		{
+			if ( !Transform.IsStatic() )
+				return false;
+			
+			//	gr: if we have a parent, we need to know if that parent is static...
+			//	todo: provide a way to tell! (do we need to iterate the tree twice? :/)
+			if ( HasParent )
+			{
+				//if ( !ParentIsStatic )
+				return false;
+			}
+
+			foreach (var Shape in shapes)
+			{
+				if ( !Shape.IsStatic() )
+					return false;
+			}
+			return true;
+		}
 	
 		public float				ip;
 		public int					FirstKeyFrame => (int)ip;	//	visible after this
@@ -955,6 +1169,7 @@ namespace PopLottie
 		public int					ind;
 		public int					LayerId => ind;	//	for parenting
 		public int?					parent;
+		public bool					HasParent => parent !=null;
 		
 		public float				st;
 		public double				StartTime => st;
@@ -1005,6 +1220,20 @@ namespace PopLottie
 			return (FrameNumber)Frame;
 		}
 		
+		public bool IsStatic()
+		{
+			//	if we have only one frame... we must be static?
+			if ( this.FirstKeyFrame >= this.LastKeyFrame )
+				return true;
+			
+			//	look for any non static layers
+			foreach (var layer in layers )
+			{
+				if ( !layer.IsStatic() )
+					return false;
+			}
+			return true;
+		}
 	
 		public string	v;	//"5.9.2"
 		public float	fr;
@@ -1035,8 +1264,8 @@ namespace PopLottie
 	
 	public class Animation : IDisposable
 	{
-		Root	lottie;
-		public bool			IsStatic => false;
+		Root				lottie;
+		public bool			IsStatic;
 
 		public Animation(string FileContents)
 		{
@@ -1053,7 +1282,8 @@ namespace PopLottie
 			
 			
 			lottie = (Root)serializer.Deserialize(new JTokenReader(Parsed), typeof(Root));
-			//Debug.Log($"Decoded lottie ok x{lottie.layers.Length} layers");
+			IsStatic = lottie.IsStatic();
+			//Debug.Log($"Decoded lottie ok x{lottie.layers.Length} layers; static={IsStatic}");
 		}
 		
 		public TimeSpan Duration => lottie.Duration;
