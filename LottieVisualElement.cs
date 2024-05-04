@@ -177,10 +177,10 @@ namespace PopLottie
 	
 		void DrawRectX(Painter2D painter2D,Rect rect,Color Colour,float LineWidth=1)
 		{
-			var TL = new Vector2( contentRect.xMin, contentRect.yMin );
-			var TR = new Vector2( contentRect.xMax, contentRect.yMin );
-			var BL = new Vector2( contentRect.xMin, contentRect.yMax );
-			var BR = new Vector2( contentRect.xMax, contentRect.yMax );
+			var TL = new Vector2( rect.xMin, rect.yMin );
+			var TR = new Vector2( rect.xMax, rect.yMin );
+			var BL = new Vector2( rect.xMin, rect.yMax );
+			var BR = new Vector2( rect.xMax, rect.yMax );
 			painter2D.BeginPath();
 			painter2D.MoveTo( TL );
 			painter2D.LineTo( TR );
@@ -213,6 +213,20 @@ namespace PopLottie
 			//		then only regenerate commands if the time has changed
 			try
 			{
+				//	render a small square if the animation is static
+				if ( enableDebug )
+				{
+					if ( LottieAnimation.IsStatic )
+					{
+						var IsStaticRect = contentRect;
+						IsStaticRect.x += 10;
+						IsStaticRect.y += 10;
+						IsStaticRect.width = 10;
+						IsStaticRect.height = 10;
+						DrawRectX( context.painter2D, IsStaticRect, Color.red, 10 );
+					}
+				}
+			
 				var Time = GetTime();
 				//	gr: this result is now cacheable
 				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );

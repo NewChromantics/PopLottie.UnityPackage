@@ -1036,7 +1036,8 @@ namespace PopLottie
 	public class Animation : IDisposable
 	{
 		Root	lottie;
-		
+		public bool			IsStatic => false;
+
 		public Animation(string FileContents)
 		{
 			//	gr: can't use built in, as the structure changes depending on contents, and end up with clashing types
