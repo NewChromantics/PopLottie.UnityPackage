@@ -74,7 +74,14 @@ namespace PopLottie
 				
 				//	parse file
 				LottieAnimation = new Animation(_animationJson.text);
-				SetAutoRedraw( RedrawInterval );
+				if ( LottieAnimation.IsStatic )
+				{
+					SetAutoRedraw(null);
+				}
+				else
+				{
+					SetAutoRedraw( RedrawInterval );
+				}
 			}
 			catch ( Exception e)
 			{
@@ -151,6 +158,9 @@ namespace PopLottie
 				//Debug.Log($"Changing redraw interval to {ItnervalMs}ms");
 				autoRedrawScheduler = schedule.Execute( MarkDirtyRepaint ).Every(ItnervalMs);
 			}
+			
+			//	gr: trigger a single redraw here for static animations (and an immediate first frame redraw)
+			MarkDirtyRepaint();
 		}
 		
 		void OnAttached()
@@ -198,6 +208,8 @@ namespace PopLottie
 	
 		void GenerateVisualContent(MeshGenerationContext context)
 		{
+			//Debug.Log($"GenerateVisualContent({this.resourceFilename})");
+			
 			//  draw an error box if we're missing the animation
 			//  gr: can we render text easily here?
 			if ( LottieAnimation == null )
