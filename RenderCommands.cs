@@ -77,6 +77,21 @@ namespace PopLottie
 			public Vector2	ControlPointIn;
 			public Vector2	ControlPointOut;
 			public Vector2	Position;
+			
+			public BezierPoint(Vector2 position)
+			{
+				this.Position = position;
+				this.ControlPointIn = position;
+				this.ControlPointOut = position;
+			}
+			
+			public BezierPoint(Vector2 Position,Vector2 ControlPointIn,Vector2 ControlPointOut)
+			{
+				this.Position = Position;
+				this.ControlPointIn = ControlPointIn;
+				this.ControlPointOut = ControlPointOut;
+			}
+			
 		}
 		
 		public struct Ellipse
@@ -120,6 +135,63 @@ namespace PopLottie
 				this.LinearPath = null;
 				this.EllipsePath = EllipsePath;
 			}
+			
+			public static Path CreateRect(Vector2 Center,Vector2 Size,float? CornerRadius=null)
+			{
+				if ( CornerRadius.HasValue && CornerRadius.Value <= float.Epsilon )
+					CornerRadius = null;
+					
+				var l = Center.x - (Size.x/2.0f);
+				var r = Center.x + (Size.x/2.0f);
+				var t = Center.y - (Size.y/2.0f);
+				var b = Center.y + (Size.y/2.0f);
+		
+				//	slightly more complex...
+				if ( CornerRadius is float cornerRadius )
+				{
+					
+				}
+				BezierPoint[] GetCornerBeziers(Vector2 Start,Vector2 Corner,Vector2 End)
+				{
+					//	todo: apply a lerp to the bezier points, they shouldn't go right to the corner
+					//	https://nacho4d-nacho4d.blogspot.com/2011/05/bezier-paths-rounded-corners-rectangles.html
+					//	magic number is lerp( Pos -> Corner, 0.55)
+					var a = new BezierPoint( Start, ControlPointIn: Start, ControlPointOut: Corner );
+					var b = new BezierPoint( Position:End, ControlPointIn: Corner, ControlPointOut: End );
+					return new BezierPoint[]{a,b};
+				}
+				
+				if ( CornerRadius is float radius )
+				{
+					//	https://nacho4d-nacho4d.blogspot.com/2011/05/bezier-paths-rounded-corners-rectangles.html
+					//	make angled corners, then extend the control points... a bit
+					//	get inner values
+					var lin = l + radius;
+					var rin = r - radius;
+					var tin = t + radius;
+					var bin = b - radius;
+					var tl = new Vector2(l,t);
+					var tr = new Vector2(r,t);
+					var br = new Vector2(r,b);
+					var bl = new Vector2(l,b);
+					var Points = new List<BezierPoint>();
+					Points.AddRange( GetCornerBeziers( new Vector2(l,tin), tl, new Vector2(lin,t) ) );
+					Points.AddRange( GetCornerBeziers( new Vector2(rin,t), tr, new Vector2(r,tin) ) );
+					Points.AddRange( GetCornerBeziers( new Vector2(r,bin), br, new Vector2(rin,b) ) );
+					Points.AddRange( GetCornerBeziers( new Vector2(lin,b), bl,  new Vector2(l,bin) ) );
+					return new Path(Points);
+				}
+				else
+				{
+					var tl = new BezierPoint( new Vector2(l,t) );
+					var tr = new BezierPoint( new Vector2(r,t) );
+					var br = new BezierPoint( new Vector2(r,b) );
+					var bl = new BezierPoint( new Vector2(l,b) );
+					var Points = new BezierPoint[]{tl,tr,br,bl};
+					return new Path(Points);
+				}
+			}
+			
 			
 			public void				Render(UIElements.Painter2D Painter)
 			{

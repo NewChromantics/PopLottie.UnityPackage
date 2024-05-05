@@ -1511,6 +1511,18 @@ namespace PopLottie
 						RenderEllipse.Radius = EllipseSize;
 						AddPath( new RenderCommands.Path(RenderEllipse) );
 					}
+					
+					if ( Child is ShapeRectangle rectangle )
+					{
+						var Center = GroupTransform.LocalToWorldPosition(rectangle.Center.GetValueVec2(Frame));
+						var Size = GroupTransform.LocalToWorldSize(rectangle.Size.GetValueVec2(Frame));
+						var CornerRadius = GroupTransform.LocalToWorldSize(rectangle.CornerRadius.GetValue(Frame));
+						
+						//	create a path, in the shape of a rectangle!
+						//	this is generic, so for future format support, the generic code is in the output shape code
+						var Path = RenderCommands.Path.CreateRect( Center, Size, CornerRadius );
+						AddPath( Path );
+					}
 			
 					if ( Child is ShapeGroup subgroup )
 					{
