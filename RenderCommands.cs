@@ -18,10 +18,17 @@ namespace PopLottie
 		Round = UIElements.LineJoin.Round,
 		Bevel = UIElements.LineJoin.Bevel
 	}
+	public enum AnimationFillRule
+	{
+		NonZero = UIElements.FillRule.NonZero,	//	Solid (OR)
+		EvenOdd = UIElements.FillRule.OddEven,	//	overlapping shapes create holes (AND)
+	}
 	
 	public struct ShapeStyle
 	{
 		public Color?				FillColour;
+		public AnimationFillRule	FillRule;
+
 		public Color?				StrokeColour;
 		public float?				StrokeWidth;
 		public AnimationLineCap		StrokeLineCap;
@@ -271,7 +278,7 @@ namespace PopLottie
 				if ( Style.FillColour is Color fillColour )
 				{
 					Painter.fillColor = fillColour;
-					Painter.Fill(UIElements.FillRule.OddEven);
+					Painter.Fill((UIElements.FillRule)Style.FillRule);
 				}
 				
 				Painter.ClosePath();

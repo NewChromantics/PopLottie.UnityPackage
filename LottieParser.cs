@@ -588,8 +588,8 @@ namespace PopLottie
 		public List<float[]>	i;	//	in-tangents
 		public List<float[]>	o;	//	out-tangents
 		public List<float[]>	v;	//	vertexes
-		public bool		c;
-		public bool		Closed => c;
+		public bool		c;		//	docs say 0-1, but seems to always be true/false
+		public bool		Closed => c;	//c == 1;
 
 		public ControlPoint[]	GetControlPoints(PathTrim Trim)
 		{
@@ -856,7 +856,13 @@ namespace PopLottie
 
 		//	Fill
 		public AnimatedColour	Fill_Colour => c;
-		//public int				r;	//	fill rule
+		public int				r;	//	fill rule
+		public AnimationFillRule	FillRule => r switch
+		{
+			1 => AnimationFillRule.NonZero,
+			2 => AnimationFillRule.EvenOdd,
+			_ => AnimationFillRule.NonZero
+		};
 		
 		//	Stroke
 		public AnimatedNumber	w;	//	width
@@ -1119,6 +1125,7 @@ namespace PopLottie
 			if ( Fill != null )
 			{
 				Style.FillColour = Fill.GetColour(Frame);
+				Style.FillRule = Fill.FillRule;
 			}
 			if ( Stroke != null )
 			{
