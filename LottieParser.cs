@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 //	com.unity.nuget.newtonsoft-json
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Unity.VisualScripting;
 using Object = UnityEngine.Object;
 
 
@@ -24,11 +23,51 @@ namespace PopLottie
 	[Serializable] public struct AssetMeta
 	{
 	}
-	
 
+
+	[UnityEngine.Scripting.Preserve]
+	class ValueCurveConvertor : JsonConverter<ValueCurve>
+	{
+		static float[] GetFloats(JToken? TokenMaybe)
+		{
+			if ( TokenMaybe is JArray array )
+			{
+				return array.Select( GetValue ).ToArray();
+			}
+			else if ( TokenMaybe is JToken token )
+			{
+				var Value = GetValue(token);
+				return new float[]{Value};
+			}
+			else
+			{
+				throw new Exception($"Failed to get float or array from expected float or array");
+			}
+		}
+		static float GetValue(JToken Value)
+		{
+			if ( Value.Type == JTokenType.Integer )
+				return (long)Value;
+			if ( Value.Type == JTokenType.Float )
+				return (float)Value;
+			throw new Exception("Got javascript value which isnt a number");
+		}
+		
+		public override void WriteJson(JsonWriter writer, ValueCurve value, JsonSerializer serializer) { throw new NotImplementedException(); }
+		public override ValueCurve ReadJson(JsonReader reader, Type objectType, ValueCurve existingValue, bool hasExistingValue,JsonSerializer serializer)
+		{
+			var ThisObject = JObject.Load(reader);
+			existingValue.x = GetFloats( ThisObject.GetValue("x") );
+			existingValue.y = GetFloats( ThisObject.GetValue("y") );
+			return existingValue;
+		}
+	}
+	
+	
 	[Serializable]
 	public struct ValueCurve
 	{
+		//	this can be an array or a single value, so ValueCurve has a custom convertor
 		public float[]	x;	//	time X axis
 		public float[]	y;	//	value Y axis
 	}
