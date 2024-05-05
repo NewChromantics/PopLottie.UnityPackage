@@ -1387,9 +1387,8 @@ namespace PopLottie
 				GroupTransform.Parent = ParentTransform;
 				var GroupStyleMaybe = Group.GetShapeStyle(Frame);
 				var GroupStyle = GroupStyleMaybe ?? new ShapeStyle();
-				var GroupAlpha = Group.GetAlpha(Frame);
-				GroupAlpha *= LayerAlpha;
-				
+				var GroupAlpha = Group.GetAlpha(Frame) * LayerAlpha;
+				GroupStyle.MultiplyAlpha(GroupAlpha);
 				
 				void AddPath(RenderCommands.Path NewPath)
 				{
@@ -1400,7 +1399,6 @@ namespace PopLottie
 				void FinishShape()
 				{
 					var ShapeStyle = GroupStyle;
-					ShapeStyle.MultiplyAlpha(GroupAlpha);
 					var StrokeWidth = GroupTransform.LocalToWorldSize( GroupStyle.StrokeWidth ?? 1 );
 					ShapeStyle.StrokeWidth = StrokeWidth;
 					
