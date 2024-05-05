@@ -1,12 +1,51 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-
+using UIElements = UnityEngine.UIElements;
 
 namespace PopLottie
 {
+	public enum AnimationLineCap
+	{
+		Round = UIElements.LineCap.Round,
+		Butt = UIElements.LineCap.Butt,
+		Square = UIElements.LineCap.Butt
+	}
+	public enum AnimationLineJoin
+	{
+		Miter = UIElements.LineJoin.Miter,
+		Round = UIElements.LineJoin.Round,
+		Bevel = UIElements.LineJoin.Bevel
+	}
+	
+	public struct ShapeStyle
+	{
+		public Color?				FillColour;
+		public Color?				StrokeColour;
+		public float?				StrokeWidth;
+		public AnimationLineCap		StrokeLineCap;
+		public AnimationLineJoin	StrokeLineJoin;
+
+		public bool		IsStroked => StrokeColour.HasValue;
+		public bool		IsFilled => FillColour.HasValue;
+		
+		public void		MultiplyAlpha(float Multiplier)
+		{
+			if ( FillColour is Color fill )
+			{
+				fill.a *= Multiplier;
+				FillColour = fill;
+			}
+
+			if ( StrokeColour is Color stroke )
+			{
+				stroke.a *= Multiplier;
+				StrokeColour = stroke;
+			}
+		}
+	}
+
 	//	Currently optimised for UIToolkit VectorAPI 
 	public static class RenderCommands
 	{
@@ -59,7 +98,7 @@ namespace PopLottie
 				this.EllipsePath = EllipsePath;
 			}
 			
-			public void				Render(UnityEngine.UIElements.Painter2D Painter)
+			public void				Render(UIElements.Painter2D Painter)
 			{
 				if ( EllipsePath is Ellipse e )
 				{
@@ -126,7 +165,7 @@ namespace PopLottie
 				Shapes.Add(shape);
 			}
 			
-			public void		Render(UnityEngine.UIElements.Painter2D Painter)
+			public void		Render(UIElements.Painter2D Painter)
 			{
 				foreach (var Shape in Shapes)
 				{
@@ -134,7 +173,7 @@ namespace PopLottie
 				}
 			}
 			
-			public void		RenderDebug(UnityEngine.UIElements.Painter2D Painter)
+			public void		RenderDebug(UIElements.Painter2D Painter)
 			{
 				void DrawDebugPoint(DebugPoint Point)
 				{
@@ -187,15 +226,15 @@ namespace PopLottie
 			
 		}
 		
+		
+		
 		public struct Shape
 		{
 			//	these paths are renderered sequentially to cause holes
-			public Path[]			Paths;
-			public Color?			FillColour;
-			public Color?			StrokeColour;
-			public float			StrokeWidth;
+			public Path[]				Paths;
+			public ShapeStyle			Style;
 			
-			public void				Render(UnityEngine.UIElements.Painter2D Painter)
+			public void				Render(UIElements.Painter2D Painter)
 			{
 				Painter.BeginPath();
 
@@ -204,23 +243,25 @@ namespace PopLottie
 					Path.Render(Painter);
 				}
 				
-				if ( StrokeColour is Color strokeColour )
+				if ( Style.StrokeColour is Color strokeColour )
 				{
 					Painter.strokeColor = strokeColour;
-					Painter.lineWidth = StrokeWidth;
+					Painter.lineWidth = Style.StrokeWidth ?? 0;
+					Painter.lineCap = (UIElements.LineCap)Style.StrokeLineCap;
+					Painter.lineJoin = (UIElements.LineJoin)Style.StrokeLineJoin;
 					Painter.Stroke();
 				}
 				
-				if ( FillColour is Color fillColour )
+				if ( Style.FillColour is Color fillColour )
 				{
 					Painter.fillColor = fillColour;
-					Painter.Fill(UnityEngine.UIElements.FillRule.OddEven);
+					Painter.Fill(UIElements.FillRule.OddEven);
 				}
 				
 				Painter.ClosePath();
 			}
 			
-			public void				RenderDebug(UnityEngine.UIElements.Painter2D Painter)
+			public void				RenderDebug(UIElements.Painter2D Painter)
 			{
 				
 			}

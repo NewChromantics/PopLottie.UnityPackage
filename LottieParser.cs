@@ -851,12 +851,33 @@ namespace PopLottie
 	[Serializable] public class ShapeFillAndStroke : Shape 
 	{
 		public AnimatedColour	c;	//	colour
+		public AnimatedNumber	o;
+		public AnimatedNumber	Opacity => o;
+
+		//	Fill
 		public AnimatedColour	Fill_Colour => c;
-		public AnimatedColour	Stroke_Colour => c;
 		//public int				r;	//	fill rule
-		public AnimatedNumber	o;	//	opacity? 
+		
+		//	Stroke
 		public AnimatedNumber	w;	//	width
+		public int				lc;
+		public int				lj;
+		public AnimatedColour	Stroke_Colour => c;
 		public AnimatedNumber	Stroke_Width => w;
+		public AnimationLineCap	LineCap => lc switch
+		{
+			1 => AnimationLineCap.Butt,
+			2 => AnimationLineCap.Round,
+			3 => AnimationLineCap.Square,
+			_ => AnimationLineCap.Butt,
+		};
+		public AnimationLineJoin	LineJoin => lj switch
+		{
+			1 => AnimationLineJoin.Miter,
+			2 => AnimationLineJoin.Round,
+			3 => AnimationLineJoin.Bevel,
+			_ => AnimationLineJoin.Miter,
+		};
 		
 		public override bool	IsStatic()
 		{
@@ -869,7 +890,7 @@ namespace PopLottie
 			return true;
 		}
 		
-		public float			GetWidth(FrameNumber Frame)
+		public float			GetStrokeWidth(FrameNumber Frame)
 		{
 			var Value = w.GetValue(Frame);
 			//	gr: it kinda looks like unity's width is radius, and lotties is diameter, as it's consistently a bit thick
@@ -878,7 +899,10 @@ namespace PopLottie
 		}
 		public Color			GetColour(FrameNumber Frame)
 		{
-			return c.GetColour(Frame);
+			var Opacity = o.GetValue(Frame) / 100.0f;
+			var Colour = c.GetColour(Frame);
+			Colour.a *= Opacity;
+			return Colour;
 		}
 	}
 		
@@ -947,14 +971,7 @@ namespace PopLottie
 		
 	}
 	
-	public struct ShapeStyle
-	{
-		public Color?	FillColour;
-		public Color?	StrokeColour;
-		public float?	StrokeWidth;
-		public bool		IsStroked => StrokeColour.HasValue;
-		public bool		IsFilled => FillColour.HasValue;
-	}
+	
 
 
 	//	struct ideally, but to include pointer to parent, can't be a struct
@@ -1108,7 +1125,9 @@ namespace PopLottie
 			if ( Stroke != null )
 			{
 				Style.StrokeColour = Stroke.GetColour(Frame);
-				Style.StrokeWidth = Stroke.GetWidth(Frame);
+				Style.StrokeWidth = Stroke.GetStrokeWidth(Frame);
+				Style.StrokeLineCap = Stroke.LineCap;
+				Style.StrokeLineJoin = Stroke.LineJoin;
 			}
 			if ( Fill == null && Stroke == null )
 				return null;
@@ -1382,23 +1401,14 @@ namespace PopLottie
 				
 				void FinishShape()
 				{
-					var FillColour = GroupStyle.FillColour ?? Color.green;
-					var StrokeColour = GroupStyle.StrokeColour ?? Color.yellow;
-					FillColour.a *= GroupAlpha;
-					StrokeColour.a *= GroupAlpha;
+					var ShapeStyle = GroupStyle;
+					ShapeStyle.MultiplyAlpha(GroupAlpha);
 					var StrokeWidth = GroupTransform.LocalToWorldSize( GroupStyle.StrokeWidth ?? 1 );
-
+					ShapeStyle.StrokeWidth = StrokeWidth;
+					
 					var NewShape = new RenderCommands.Shape();
 					NewShape.Paths = CurrentPaths.ToArray();
-					if ( GroupStyle.IsStroked )
-					{
-						NewShape.StrokeColour = StrokeColour;
-						NewShape.StrokeWidth = StrokeWidth;
-					}
-					if ( GroupStyle.IsFilled )
-					{
-						NewShape.FillColour = FillColour;
-					}
+					NewShape.Style = ShapeStyle;
 					
 					CurrentPaths = new();
 					AddRenderShape(NewShape);
