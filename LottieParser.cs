@@ -1274,11 +1274,15 @@ namespace PopLottie
 		public ShapeTransform		Transform=>ks;	//	gr: this is not really a shape, but has same properties & interface (all the derived parts in ShapeTransform)
 		public int					ao;
 		public bool					AutoOrient => ao != 0;
-		public ShapeWrapper[]		shapes;
-		public IEnumerable<Shape>	ChildrenFrontToBack => shapes.Select( sw => sw.TheShape );
-		public IEnumerable<Shape>	ChildrenBackToFront => ChildrenFrontToBack.Reverse();
+		
 		public int					bm;
 		public int					BlendMode => bm;
+
+		//	group layer
+		public ShapeWrapper[]		shapes;
+		public ShapeWrapper[]		ShapeChildren => shapes ?? Array.Empty<ShapeWrapper>();
+		public IEnumerable<Shape>	ChildrenFrontToBack => ShapeChildren.Select( sw => sw.TheShape );
+		public IEnumerable<Shape>	ChildrenBackToFront => ChildrenFrontToBack.Reverse();
 	}
 	
 	[Serializable]
