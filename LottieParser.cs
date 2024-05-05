@@ -738,6 +738,7 @@ namespace PopLottie
 		Path,
 		Ellipse,
 		TrimPath,		//	path trimmer, to modify (trim) a sibling shape
+		Rectangle,
 	}
 	
 
@@ -760,6 +761,7 @@ namespace PopLottie
 				case ShapeType.Group:		return ShapeObject.ToObject<ShapeGroup>(serializer);
 				case ShapeType.Path:		return ShapeObject.ToObject<ShapePath>(serializer);
 				case ShapeType.TrimPath:	return ShapeObject.ToObject<ShapeTrimPath>(serializer);
+				case ShapeType.Rectangle:	return ShapeObject.ToObject<ShapeRectangle>(serializer);
 				
 				default:
 					throw new Exception($"AllocateShape Unhandled shape type {shapeType}");
@@ -812,6 +814,7 @@ namespace PopLottie
 			"st" => ShapeType.Stroke,
 			"el" => ShapeType.Ellipse,
 			"tm" => ShapeType.TrimPath,
+			"rc" => ShapeType.Rectangle,
 			_ => throw new Exception($"Unknown type {ty}")
 		};
 		
@@ -824,6 +827,27 @@ namespace PopLottie
 		public override bool IsStatic()
 		{
 			throw new Exception($"An instance of this class should never get to a point where it's tested for being static");
+		}
+	}
+	
+	[Serializable] public class ShapeRectangle : Shape
+	{
+		public AnimatedVector p;
+		public AnimatedVector s;
+		public AnimatedVector r;
+		public AnimatedVector Center => p;
+		public AnimatedVector Size => s;
+		public AnimatedVector CornerRadius => r;
+		
+		public override bool	IsStatic()	
+		{
+			if ( !p.IsStatic() )
+				return false;
+			if ( !s.IsStatic() )
+				return false;
+			if ( !r.IsStatic() )
+				return false;
+			return true;
 		}
 	}
 	
@@ -1525,6 +1549,18 @@ namespace PopLottie
 						RenderEllipse.Center = EllipseCenter;
 						RenderEllipse.Radius = EllipseSize;
 						AddPath( new RenderCommands.Path(RenderEllipse) );
+					}
+					
+					if ( Child is ShapeRectangle rectangle )
+					{
+						var Center = GroupTransform.LocalToWorldPosition(rectangle.Center.GetValueVec2(Frame));
+						var Size = GroupTransform.LocalToWorldSize(rectangle.Size.GetValueVec2(Frame));
+						var CornerRadius = GroupTransform.LocalToWorldSize(rectangle.CornerRadius.GetValue(Frame));
+						
+						//	create a path, in the shape of a rectangle!
+						//	this is generic, so for future format support, the generic code is in the output shape code
+						var Path = RenderCommands.Path.CreateRect( Center, Size, CornerRadius );
+						AddPath( Path );
 					}
 			
 					if ( Child is ShapeGroup subgroup )
