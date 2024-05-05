@@ -65,6 +65,7 @@ namespace PopLottie
 	
 	
 	[Serializable]
+	[JsonConverter(typeof(ValueCurveConvertor))]
 	public struct ValueCurve
 	{
 		//	this can be an array or a single value, so ValueCurve has a custom convertor
@@ -331,6 +332,8 @@ namespace PopLottie
 				//existingValue.ReadAnimatedOrNotAnimated(reader);
 				Debug.LogWarning($"Decoding Frame_Float unhandled token type {reader.TokenType}");
 			}
+			if ( existingValue.FrameCount == 0 )
+				throw new Exception($"Should never parse a keyframed value with no frames");
 			return existingValue;
 		}
 	}
@@ -341,6 +344,7 @@ namespace PopLottie
 		public void AddFrame(JObject Object,JsonSerializer Serializer);
 		public void AddFrame(T Frame);
 		public void AddFrame(float[] Values);
+		public int FrameCount { get;}
 	}
 	
 	public interface IFrame
@@ -492,6 +496,8 @@ namespace PopLottie
 	public struct Keyframed_Float : IKeyframed<Frame_Float>
 	{
 		List<Frame_Float>		Frames;
+	
+		public int FrameCount => Frames.Count;
 
 		public bool IsStatic()
 		{
@@ -547,6 +553,8 @@ namespace PopLottie
 	{
 		List<Frame_FloatArray>		Frames;
 		
+		public int FrameCount => Frames.Count;
+
 		public bool IsStatic()
 		{
 			//	shouldn't really have zero frames... this should error at constructoion
