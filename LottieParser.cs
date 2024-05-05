@@ -893,8 +893,6 @@ namespace PopLottie
 		public float			GetStrokeWidth(FrameNumber Frame)
 		{
 			var Value = w.GetValue(Frame);
-			//	gr: it kinda looks like unity's width is radius, and lotties is diameter, as it's consistently a bit thick
-			Value *= 0.8f;
 			return Value;
 		}
 		public Color			GetColour(FrameNumber Frame)
