@@ -44,6 +44,22 @@ namespace PopLottie
 				StrokeColour = stroke;
 			}
 		}
+		
+		//	gr: used by unity visual element to tint output
+		public void TintColour(Color Tint)
+		{
+			if ( FillColour is Color fill )
+			{
+				fill *= Tint;
+				FillColour = fill;
+			}
+
+			if ( StrokeColour is Color stroke )
+			{
+				stroke *= Tint;
+				StrokeColour = stroke;
+			}
+		}
 	}
 
 	//	Currently optimised for UIToolkit VectorAPI 

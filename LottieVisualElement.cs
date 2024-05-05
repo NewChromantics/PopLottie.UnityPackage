@@ -242,6 +242,10 @@ namespace PopLottie
 				var Time = GetTime();
 				//	gr: this result is now cacheable
 				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
+				
+				//	apply some "pre render effects" (function named to match swift version)
+				OnPreRender(ref Frame);
+				
 				Frame.Render(context.painter2D);
 				if ( enableDebug )
 					Frame.RenderDebug(context.painter2D);
@@ -259,6 +263,24 @@ namespace PopLottie
 			//Debug.Log($"OnVisualElementDirty anim={this.LottieAnimation} resource={this.ResourceFilename}");
 		}
 
+		protected virtual void OnPreRender(ref RenderCommands.AnimationFrame Frame)
+		{
+			var UiStyle = this.resolvedStyle;
+			
+			//	user has non-default tint
+			if ( UiStyle.unityBackgroundImageTintColor != Color.white )
+			{
+				//	change the style of all shapes
+				var Shapes = Frame.Shapes;
+				for ( var i=0;	i<Shapes.Count;	i++ )
+				{
+					//	can't modify struct in-place with list
+					var Shape = Shapes[i];
+					Shape.Style.TintColour(UiStyle.unityBackgroundImageTintColor);
+					Shapes[i] = Shape;
+				}
+			}
+		}
 
 	}
 }
