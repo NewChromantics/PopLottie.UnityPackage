@@ -983,7 +983,7 @@ namespace PopLottie
 		//	gr: not parsing as mix of animated & not
 		public AnimatedVector	s;	//	scale
 		public AnimatedVector	r;	//	rotation
-		public AnimatedNumber	o;	//	opacity
+		public AnimatedNumber?	o;	//	opacity
 		
 		public override bool	IsStatic()
 		{
@@ -995,8 +995,9 @@ namespace PopLottie
 				return false;
 			if ( !r.IsStatic() )	
 				return false;
-			if ( !o.IsStatic() )	
-				return false;
+			if ( o is AnimatedNumber opactity ) 
+				if ( !opactity.IsStatic() )	
+					return false;
 			return true;
 		}
 		
@@ -1012,9 +1013,13 @@ namespace PopLottie
 		
 		public float GetAlpha(FrameNumber Frame)
 		{
-			var Opacity = o.GetValue(Frame);
-			float Alpha = Opacity / 100.0f;
-			return Alpha;
+			if ( o is AnimatedNumber opacity )
+			{
+				var Opacity = opacity.GetValue(Frame);
+				float Alpha = Opacity / 100.0f;
+				return Alpha;
+			}
+			return 100.0f;
 		}
 	}
 	
