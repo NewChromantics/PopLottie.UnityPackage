@@ -166,28 +166,62 @@ namespace PopLottie
 			OnRedrawTrigger();
 		}
 		
+		//	if set, we've pre-calculated (or at least, already calculated) the frame to draw
+		//	and dont need to calculate it again
+		RenderCommands.AnimationFrame?	DrawFrame = null;
+		//	if we dont have a pre-set frame to draw, we may have a time we should draw
+		//	(in case say, TextElements are sync'd to that time)
+		TimeSpan?						DrawTime = null;
+		
 		void OnRedrawTrigger()
 		{
-			//	todo: calculate the next frame now... although we DONT have the content rect...
-			try
-			{
-				//		but we can at least get the text layers, and update the dom.
-				var Time = GetTime();
-				//	todo: we can't cache this for the redraw.... but we could store the time 
-				//		so positions line up
-				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
-
-				//	apply some "pre render effects" (function named to match swift version)
-				OnPreRender(ref Frame);
-					
-				var TextPaths = Frame.GetTextPaths();
+			//	invalidate any caches for next draw
+			//	gr: here we may find we don't need to clear the cache... but _something_ has triggered this redraw
+			//		so contentrect may be changing
+			DrawTime = null;
+			DrawFrame = null;
+		
+			bool PreCalcFrame = false;
+			
+			//	need to synchronise text with layers
+			if ( LottieAnimation?.HasTextLayers ??  false )
+				PreCalcFrame = true;
 				
-				UpdateTextElements(TextPaths);
-			}
-			catch(Exception e)
+			//	but it's not gonna work if we have no content rect!
+			//	gr: what do we do if we have text on a static object and no content rect yet?
+			if ( float.IsNaN(contentRect.width) || float.IsNaN(contentRect.height) || contentRect.width <= 0f || contentRect.height <= 0f )
+				PreCalcFrame = false;
+		
+			//	todo: calculate the next frame now... although we DONT have the content rect...
+			if ( PreCalcFrame )
 			{
-				Debug.LogException(e);
+				try
+				{
+					//		but we can at least get the text layers, and update the dom.
+					var Time = GetTime();
+					//	todo: we can't cache this for the redraw.... but we could store the time 
+					//		so positions line up
+					var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
+
+					//	apply some "pre render effects" (function named to match swift version)
+					OnPreRender(ref Frame);
+						
+					var TextPaths = Frame.GetTextPaths();
+					
+					UpdateTextElements(TextPaths);
+					
+					//Debug.Log($"Cache {resourceFilename} at {Time} contentrect={contentRect}");
+					DrawTime = Time;
+					DrawFrame = Frame;
+				}
+				catch(Exception e)
+				{
+					Debug.LogException(e);
+					DrawTime = null;
+					DrawFrame = null;
+				}
 			}
+			
 			MarkDirtyRepaint();
 		}
 		
@@ -232,9 +266,26 @@ namespace PopLottie
 			//		then only regenerate commands if the time has changed
 			try
 			{
-				//	render a small square if the animation is static
+				//	if not already been told what frame to draw
+				//	work it out
+				if ( DrawFrame == null )
+				{
+					var Time = DrawTime ?? GetTime();
+					//	gr: this result is now cacheable
+					var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
+				
+					//	apply some "pre render effects" (function named to match swift version)
+					OnPreRender(ref Frame);
+					DrawFrame = Frame;
+				}
+				
+				DrawFrame.Value.Render(context.painter2D);
+				
 				if ( enableDebug )
 				{
+					DrawFrame.Value.RenderDebug(context.painter2D);
+
+					//	render a small square if the animation is static
 					if ( LottieAnimation.IsStatic )
 					{
 						var IsStaticRect = contentRect;
@@ -244,20 +295,6 @@ namespace PopLottie
 						IsStaticRect.height = 10;
 						RenderCommands.AnimationFrame.DrawRectX( context.painter2D, IsStaticRect, Color.red, 10 );
 					}
-				}
-			
-				var Time = GetTime();
-				//	gr: this result is now cacheable
-				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
-				
-				//	apply some "pre render effects" (function named to match swift version)
-				OnPreRender(ref Frame);
-				
-				Frame.Render(context.painter2D);
-				
-				if ( enableDebug )
-				{
-					Frame.RenderDebug(context.painter2D);
 				}
 			}
 			catch(Exception e)

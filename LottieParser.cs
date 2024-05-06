@@ -1485,7 +1485,18 @@ namespace PopLottie
 			}
 			return true;
 		}
-	
+		
+		public bool HasAnyTextLayers()
+		{
+			foreach (var layer in Layers )
+			{
+				if ( layer.LayerType == LayerType.Text )
+					return true;
+			}
+			return false;
+		}
+		
+
 		public string	v;	//"5.9.2"
 		public float	fr;
 		public float	FramesPerSecond => fr;
@@ -1517,6 +1528,7 @@ namespace PopLottie
 	{
 		Root				lottie;
 		public bool			IsStatic;
+		public bool			HasTextLayers;
 
 		public Animation(string FileContents)
 		{
@@ -1534,6 +1546,7 @@ namespace PopLottie
 			
 			lottie = (Root)serializer.Deserialize(new JTokenReader(Parsed), typeof(Root));
 			IsStatic = lottie.IsStatic();
+			HasTextLayers = lottie.HasAnyTextLayers();
 			//Debug.Log($"Decoded lottie ok x{lottie.layers.Length} layers; static={IsStatic}");
 		}
 		
