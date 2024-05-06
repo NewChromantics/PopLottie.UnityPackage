@@ -1,7 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Codice.Client.BaseCommands;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.UIElements;
 
 namespace PopLottie
@@ -62,7 +65,7 @@ namespace PopLottie
 			}
 		}
 
-
+		List<TextElement>	TextElements = new();
 
 		void LoadAnimation()
 		{
@@ -183,8 +186,6 @@ namespace PopLottie
 		{
 			return TimeSpan.FromSeconds( Time.realtimeSinceStartup );
 		}
-		
-	
 
 	
 		void GenerateVisualContent(MeshGenerationContext context)
@@ -229,6 +230,19 @@ namespace PopLottie
 				
 				Frame.Render(context.painter2D);
 				
+				var TextPaths = Frame.GetTextPaths();
+				//	cannot do this during generate geometry
+				//	update a pending list and trigger it
+				//UpdateTextElements(TextPaths);
+				async System.Threading.Tasks.Task TriggerUpdate()
+				{
+					//	this works as a hack, but causes 1 frame lag..
+					await Task.Yield();
+					UpdateTextElements(TextPaths);
+				};
+				if ( TextPaths.Count >0 )
+					TriggerUpdate();
+				
 				if ( enableDebug )
 				{
 					Frame.RenderDebug(context.painter2D);
@@ -263,6 +277,61 @@ namespace PopLottie
 					Shape.Style.TintColour(UiStyle.unityBackgroundImageTintColor);
 					Shapes[i] = Shape;
 				}
+			}
+		}
+
+		static TextAnchor GetTextAnchorFromTextPathAlignment(TextJustify Justify)
+		{
+			switch (Justify)
+			{
+				default:
+				case TextJustify.Left:		return TextAnchor.UpperLeft;
+				case TextJustify.Center:	return TextAnchor.MiddleCenter;
+				case TextJustify.Right:		return TextAnchor.UpperRight;
+			}
+		}
+
+		void UpdateTextElements(List<AnimationText> TextPaths)
+		{
+			//	remove excess elements
+			while ( TextElements.Count > TextPaths.Count )
+			{
+				this.Remove(this.TextElements[0]);
+				this.TextElements.RemoveAt(0);
+			}
+			//	update & add new elements
+			for ( int i=0;	i<TextPaths.Count;	i++ )
+			{
+				if ( TextElements.Count-1 < i )
+				{
+					var NewElement = new TextElement();
+					this.Add(NewElement);
+					TextElements.Add(NewElement);
+				}
+				var TextElement = TextElements[i];
+				var TextPath = TextPaths[i];
+				TextElement.text = TextPath.Text;
+				TextElement.style.fontSize = TextPath.FontSize;
+				//TextElement.style.unityTextAlign = GetTextAnchorFromTextPathAlignment(TextPath.Justify);
+				TextElement.style.position = Position.Absolute;
+				
+				//	gr: unity style center alignment etc is within itself, 
+				//		not the origin
+				var Translate = TextPath.Position;
+				Translate.y -= TextPath.FontSize;
+				
+				//	gr: can only do justification if we know the size of the glyphs...
+				var TextBox = TextElement.MeasureTextSize(TextElement.text,TextPath.FontSize,MeasureMode.AtMost,TextPath.FontSize, MeasureMode.AtMost);
+				if ( TextPath.Justify == TextJustify.Center )
+					Translate.x -= TextBox.x / 2.0f;
+				else if ( TextPath.Justify == TextJustify.Right )
+					Translate.x -= TextBox.x;
+				TextElement.transform.position = Translate;
+				
+				//TextElement.style.left = Translate.x;
+				//TextElement.style.top = Translate.y;
+				//	gr: this doesnt effect translation, style etc
+				//TextElement.style.transformOrigin = new TransformOrigin(Length.Percent(0), Length.Percent(0));
 			}
 		}
 

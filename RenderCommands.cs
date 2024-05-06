@@ -316,6 +316,22 @@ namespace PopLottie
 				}
 			}
 			
+			public List<AnimationText> GetTextPaths()
+			{
+				var Texts = new List<AnimationText>();
+				
+				foreach (var Shape in Shapes)
+				{
+					foreach (var Path in Shape.Paths)
+					{
+						if ( Path.TextPaths == null )
+							continue;
+						Texts.AddRange(Path.TextPaths);
+					}
+				}
+				return Texts;
+			}
+			
 			public void		RenderDebug(UIElements.Painter2D Painter)
 			{
 				void DrawDebugPoint(DebugPoint Point)
