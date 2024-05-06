@@ -737,7 +737,7 @@ namespace PopLottie
 		}
 	}
 
-	public enum ShapeType
+	internal enum ShapeType
 	{
 		Fill,
 		Stroke,
@@ -750,9 +750,32 @@ namespace PopLottie
 		Merge,
 	}
 	
+	//	https://lottiefiles.github.io/lottie-docs/layers/#layers
+	enum LayerType
+	{
+		Precomposition = 0,
+		SolidColour = 1,
+		Image = 2,
+		Empty = 3,
+		Shape = 4,
+		Text = 5,
+		Audio = 6,
+		VideoPlaceholder = 7,
+		ImageSequence = 8,
+		Video = 9,
+		ImagePlaceholder = 10,
+		Guide = 11,
+		Adjustment = 12,
+		Camera3D = 13,
+		Light = 14,
+		Data = 15,
+
+		//Unknown = 999	//	gr: instead of throwing and complicating swift, have a dummy value
+	}
+	
 
 	[UnityEngine.Scripting.Preserve]
-	public class ShapeConvertor : JsonConverter<ShapeWrapper>
+	class ShapeConvertor : JsonConverter<ShapeWrapper>
 	{
 		public override void WriteJson(JsonWriter writer, ShapeWrapper value, JsonSerializer serializer)
 		{
@@ -793,12 +816,117 @@ namespace PopLottie
 	}
 	
 	[JsonConverter(typeof(ShapeConvertor))]
-	[Serializable] public struct ShapeWrapper 
+	[Serializable] struct ShapeWrapper 
 	{
 		public Shape		TheShape;
 		public ShapeType	Type => TheShape.Type; 
 		public bool			IsStatic()	{	return TheShape.IsStatic();	}
 	}
+		
+	[Serializable]
+	public struct TextStyle
+	{
+		public AnimatedNumber	sw;	//	stroke width
+		public AnimatedColour	sc;	//	stroke colour
+		public AnimatedNumber	sh;	//	stroke hue
+		public AnimatedNumber	ss;	//	stroke saturation
+		public AnimatedNumber	sb;	//	Stroke Brightness
+		public AnimatedNumber	so;	//	Stroke Opacity
+		public AnimatedColour	fc;	//	Fill Color
+		public AnimatedNumber	fh;	//	Fill Hue
+		public AnimatedNumber	fs;	//	Fill Saturation
+		public AnimatedNumber	fb;	//	Fill Brightness
+		public AnimatedNumber	fo;	//	Fill Opacity
+		public AnimatedNumber	t;	//	Letter Spacing
+		public AnimatedNumber	bl;	//	Blur
+		public AnimatedNumber	ls;	//	Line spacing
+	}
+
+	[Serializable]
+	public struct TextRangeSelector
+	{
+	}
+
+	[Serializable]
+	public struct TextRange
+	{
+		public String				nm;
+		public TextRangeSelector	s;
+		public TextStyle			a;
+	}
+
+	[Serializable]
+	public struct TextDocument
+	{
+		public String	f;		//	font family
+		public String	FontFamily => f;
+		public float[]	fc;
+		public Color	FillColour => new Color( fc[0], fc[1], fc[2] );
+		public Color	GetFillColour(float Alpha) {	return new Color(fc[0], fc[1], fc[2], Alpha );	}
+
+		public float[]	sc;
+		public Color	StrokeColour => new Color( sc[0], sc[1], sc[2] );
+		public Color	GetStrokeColour(float Alpha) {	return new Color(sc[0], sc[1], sc[2], Alpha );	}
+		public float	sw;
+		public float	StrokeWidth => sw;
+		public bool		of;
+		public bool		RenderStrokeAboveFill => of;
+		public float	s;
+		public float	FontSize => s;
+		//	line height (distance between lines on multine or wrapped text)
+		public float	lh;
+		public float	LineHeight => lh;
+		
+		public float[]	sz;	//	size of containing text box
+		public float[]	ps;	//	position of text box
+		public String	t;	//	text seperated with \r newlines
+		public String[]	TextLines => t.Split('\r');
+		public int		j;
+		public TextJustify	Justify => (TextJustify)j;
+		
+		
+		public ShapeStyle		GetShapeStyle(float Alpha)
+		{
+			var Style = new ShapeStyle();
+			Style.FillColour = this.GetFillColour(Alpha);
+			Style.StrokeColour = this.GetStrokeColour(Alpha);
+			Style.StrokeWidth = this.StrokeWidth;
+			return Style;
+		}
+	}
+
+	[Serializable]
+	public struct TextDocumentKeyframe
+	{
+		public TextDocument		s;
+		public TextDocument		Text => s;
+		
+		//	time (appearance only? where is end?)
+		public float			t;
+		public FrameNumber		Time => t;
+	}
+
+	[Serializable]
+	public struct AnimatedTextDocument
+	{
+		public TextDocumentKeyframe[]	k;
+		public TextDocumentKeyframe[]	Keyframes => k;
+		public String					x;	//	expression
+		public String					sid;	//	string id?
+	}
+
+
+	[Serializable]
+	struct TextData
+	{
+		public AnimatedTextDocument	d;
+	/*
+		public TextRange[]			a;
+		public TextAlignment		m;
+		public TextFollowPath		p;
+		*/
+	}
+	
 
 	[Serializable] public abstract class Shape 
 	{
@@ -815,7 +943,7 @@ namespace PopLottie
 		public bool			Hidden => hd;
 		public bool			Visible => !Hidden;
 		public String		ty;	
-		public ShapeType	Type => ty switch
+		internal ShapeType	Type => ty switch
 		{
 			"gr" => ShapeType.Group,
 			"sh" => ShapeType.Path,
@@ -1154,7 +1282,7 @@ namespace PopLottie
 		
 	}
 
-	[Serializable] public class ShapeGroup: Shape 
+	[Serializable] class ShapeGroup: Shape 
 	{
 		public List<ShapeWrapper>		it;	//	children
 		public IEnumerable<Shape>		ChildrenFrontToBack => it.Select( sw => sw.TheShape );
@@ -1234,7 +1362,7 @@ namespace PopLottie
 
 	
 	[Serializable]
-	public struct LayerMeta	//	shape layer
+	struct LayerMeta	//	shape layer
 	{
 		public bool		IsVisible(FrameNumber Frame)
 		{
@@ -1291,6 +1419,7 @@ namespace PopLottie
 		public int					ddd;
 		public bool					ThreeDimensions => ddd == 3;
 		public int					ty;
+		public LayerType			LayerType => (LayerType)ty;
 		public int					sr;
 		public ShapeTransform		ks;
 		public ShapeTransform		Transform=>ks;	//	gr: this is not really a shape, but has same properties & interface (all the derived parts in ShapeTransform)
@@ -1300,11 +1429,15 @@ namespace PopLottie
 		public int					bm;
 		public int					BlendMode => bm;
 
-		//	group layer
+		//	shape-group layer
 		public ShapeWrapper[]		shapes;
 		public ShapeWrapper[]		ShapeChildren => shapes ?? Array.Empty<ShapeWrapper>();
 		public IEnumerable<Shape>	ChildrenFrontToBack => ShapeChildren.Select( sw => sw.TheShape );
 		public IEnumerable<Shape>	ChildrenBackToFront => ChildrenFrontToBack.Reverse();
+		
+		//	text layers
+		public TextData?			t;
+		public TextData?			Text => t;
 	}
 	
 	[Serializable]
@@ -1321,7 +1454,7 @@ namespace PopLottie
 	
 		
 	[Serializable]
-	public struct Root
+	struct Root
 	{
 		public TimeSpan	FrameToTime(FrameNumber Frame)
 		{
@@ -1475,6 +1608,32 @@ namespace PopLottie
 				if ( CurrentPaths.Count != 0 )
 				{
 					throw new Exception("Finished off old shape?");
+				}
+			}
+			
+			void RenderText(TextData Text,Transformer ParentTransform,float LayerAlpha,string LayerName)
+			{
+				foreach ( var TextFrame in Text.d.Keyframes )
+				{
+					var Style = TextFrame.Text.GetShapeStyle(LayerAlpha);
+					Style.StrokeWidth = ParentTransform.LocalToWorldSize(Style.StrokeWidth??0);
+
+					var Paths = new List<RenderCommands.Path>();
+
+					//	gr: need to generate a transform specifically for glyphs here hmm
+					var LinePosition = new Vector2(0,0);
+					var FontSize = ParentTransform.LocalToWorldSize(TextFrame.Text.FontSize);
+					foreach ( var Line in TextFrame.s.TextLines )
+					{
+						var WorldPosition = ParentTransform.LocalToWorldPosition(LinePosition);
+						var TextPath = new AnimationText(Text: Line, FontName: TextFrame.Text.FontFamily, FontSize: FontSize, Position: WorldPosition );
+						var Path = new RenderCommands.Path(TextPath);
+						Paths.Add( Path );
+						//	gr: need to scale this too?
+						LinePosition.y += TextFrame.Text.LineHeight;
+					}
+					var Shape = new RenderCommands.Shape(Paths: Paths.ToArray(), Name:LayerName, Style:Style);
+					AddRenderShape(Shape);
 				}
 			}
 
@@ -1665,6 +1824,22 @@ namespace PopLottie
 				}
 
 				BeginShape();
+				
+				//	if Layer.type == LayerType.Text
+				if ( Layer.Text is TextData text )
+				{
+					try
+					{
+						RenderText( text, LayerTransform, LayerOpacity, Layer.Name );
+						//RenderGroup(group,LayerTransform,LayerOpacity);
+					}
+					catch(Exception e)
+					{
+						Debug.LogException(e);
+					}
+				}
+				
+				//	gr: if Layer.type == LayerType.Shape
 				//	render the shape
 				foreach ( var Shape in Layer.ChildrenBackToFront )
 				{

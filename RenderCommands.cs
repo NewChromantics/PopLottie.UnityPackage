@@ -24,6 +24,18 @@ namespace PopLottie
 		EvenOdd = UIElements.FillRule.OddEven,	//	overlapping shapes create holes (AND)
 	}
 	
+	public enum TextJustify
+	{
+		//	gr: note these numbers match lottie's spec, if these ever want to be reused, make it abstract here
+		Left = 0,
+		Right = 1,
+		Center = 2,
+		JustifyWithLastLineLeft = 3,
+		JustifyWithLastLineRight = 4,
+		JustifyWithLastLineCenter = 5,
+		JustifyWithLastLineFull = 6,
+	}
+	
 	public struct ShapeStyle
 	{
 		public Color?				FillColour;
@@ -68,6 +80,24 @@ namespace PopLottie
 			}
 		}
 	}
+	
+	public struct AnimationText
+	{
+		public String	Text;
+		public String	FontName;
+		public float	FontSize;
+		public Vector2	Position;
+		
+		public AnimationText(String Text,String FontName,float FontSize,Vector2 Position)
+		{
+			this.Text = Text;
+			this.FontName = FontName;
+			this.FontSize = FontSize;
+			this.Position = Position;
+		}
+		
+
+	}
 
 	//	Currently optimised for UIToolkit VectorAPI 
 	public static class RenderCommands
@@ -100,6 +130,8 @@ namespace PopLottie
 			public Vector2	Radius;
 		}
 		
+		
+		
 		public struct DebugPoint
 		{
 			public Vector2	Start;
@@ -117,23 +149,34 @@ namespace PopLottie
 			}
 		}
 		
+		//	todo: rename to AnimationPath
 		public struct Path
 		{
 			public BezierPoint[]	BezierPath;
 			public Vector3[]		LinearPath;
 			public Ellipse?			EllipsePath;
+			public AnimationText[]	TextPaths;
 			
 			public Path(IEnumerable<BezierPoint> BezierPath)
 			{
 				this.BezierPath = BezierPath.ToArray();
 				this.LinearPath = null;
 				this.EllipsePath = null;
+				this.TextPaths = null;
 			}
 			public Path(Ellipse EllipsePath)
 			{
 				this.BezierPath = null;
 				this.LinearPath = null;
 				this.EllipsePath = EllipsePath;
+				this.TextPaths = null;
+			}
+			public Path(AnimationText Text)
+			{
+				this.BezierPath = null;
+				this.LinearPath = null;
+				this.EllipsePath = null;
+				this.TextPaths = new []{Text};
 			}
 			
 			public static Path CreateRect(Vector2 Center,Vector2 Size,float? CornerRadius=null)
@@ -203,7 +246,8 @@ namespace PopLottie
 					Painter.MoveTo(e.Center);
 					Painter.Arc( e.Center, Radius, 0, 360 );
 				}
-				else if ( BezierPath?.Length > 0 )
+				
+				if ( BezierPath?.Length > 0 )
 				{
 					Painter.MoveTo(BezierPath[0].Position);
 					for ( var p=1;	p<BezierPath.Length;	p++ )
@@ -212,7 +256,8 @@ namespace PopLottie
 						Painter.BezierCurveTo( Point.ControlPointIn, Point.ControlPointOut, Point.Position ); 
 					}
 				}
-				else if ( LinearPath?.Length > 0 )
+				
+				if ( LinearPath?.Length > 0 )
 				{
 					Painter.MoveTo(LinearPath[0]);
 					for ( var p=1;	p<LinearPath.Length;	p++ )
@@ -221,6 +266,7 @@ namespace PopLottie
 						Painter.LineTo( Point ); 
 					}
 				}
+				
 			}
 			
 			public void				EnumDebugPoints(Action<DebugPoint> EnumDebugPoint)
@@ -322,12 +368,20 @@ namespace PopLottie
 		}
 		
 		
-		
+		//	rename to AnimationShape
 		public struct Shape
 		{
 			//	these paths are renderered sequentially to cause holes
 			public Path[]				Paths;
 			public ShapeStyle			Style;
+			public string				Name;
+
+			public Shape(Path[] Paths,string Name,ShapeStyle Style)
+			{
+				this.Paths = Paths;
+				this.Name = Name;
+				this.Style = Style;
+			}
 			
 			public void				Render(UIElements.Painter2D Painter)
 			{
