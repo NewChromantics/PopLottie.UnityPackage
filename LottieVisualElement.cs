@@ -308,6 +308,7 @@ namespace PopLottie
 		{
 			//	content rect changed
 			//Debug.Log($"OnVisualElementDirty anim={this.LottieAnimation} resource={this.ResourceFilename}");
+			OnRedrawTrigger();
 		}
 
 		protected virtual void OnPreRender(ref RenderCommands.AnimationFrame Frame)
