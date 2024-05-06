@@ -747,6 +747,7 @@ namespace PopLottie
 		Ellipse,
 		TrimPath,		//	path trimmer, to modify (trim) a sibling shape
 		Rectangle,
+		Merge,
 	}
 	
 
@@ -770,6 +771,7 @@ namespace PopLottie
 				case ShapeType.Path:		return ShapeObject.ToObject<ShapePath>(serializer);
 				case ShapeType.TrimPath:	return ShapeObject.ToObject<ShapeTrimPath>(serializer);
 				case ShapeType.Rectangle:	return ShapeObject.ToObject<ShapeRectangle>(serializer);
+				case ShapeType.Merge:		return ShapeObject.ToObject<ShapeMerge>(serializer);
 				
 				default:
 					throw new Exception($"AllocateShape Unhandled shape type {shapeType}");
@@ -823,7 +825,8 @@ namespace PopLottie
 			"el" => ShapeType.Ellipse,
 			"tm" => ShapeType.TrimPath,
 			"rc" => ShapeType.Rectangle,
-			_ => throw new Exception($"Unknown type {ty}")
+			"mm" => ShapeType.Merge,
+			_ => throw new Exception($"Unknown shape type {ty}")
 		};
 		
 		public abstract bool IsStatic();
@@ -835,6 +838,17 @@ namespace PopLottie
 		public override bool IsStatic()
 		{
 			throw new Exception($"An instance of this class should never get to a point where it's tested for being static");
+		}
+	}
+	
+	[Serializable] public class ShapeMerge : Shape
+	{
+		public int		mm;
+		public int		MergeMode => mm;	//	todo: enum
+		
+		public override bool	IsStatic()	
+		{
+			return true;
 		}
 	}
 	
