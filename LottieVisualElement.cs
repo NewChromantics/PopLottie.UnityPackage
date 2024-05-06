@@ -185,26 +185,7 @@ namespace PopLottie
 		}
 		
 	
-		void DrawRectX(Painter2D painter2D,Rect rect,Color Colour,float LineWidth=1)
-		{
-			var TL = new Vector2( rect.xMin, rect.yMin );
-			var TR = new Vector2( rect.xMax, rect.yMin );
-			var BL = new Vector2( rect.xMin, rect.yMax );
-			var BR = new Vector2( rect.xMax, rect.yMax );
-			painter2D.BeginPath();
-			painter2D.MoveTo( TL );
-			painter2D.LineTo( TR );
-			painter2D.LineTo( BR );
-			painter2D.LineTo( BL );
-			painter2D.LineTo( TL );
-			painter2D.LineTo( BR );
-			painter2D.MoveTo( BL );
-			painter2D.LineTo( TR );
-			painter2D.ClosePath();
-			painter2D.lineWidth = LineWidth;
-			painter2D.strokeColor = Colour;
-			painter2D.Stroke();
-		}
+
 	
 		void GenerateVisualContent(MeshGenerationContext context)
 		{
@@ -216,7 +197,7 @@ namespace PopLottie
 			{
 				//	draw the content rect when animation missing
 				if ( enableDebug )
-					DrawRectX( context.painter2D, contentRect, Color.red);
+					RenderCommands.AnimationFrame.DrawRectX( context.painter2D, contentRect, Color.red);
 				return;
 			}
 			
@@ -235,7 +216,7 @@ namespace PopLottie
 						IsStaticRect.y += 10;
 						IsStaticRect.width = 10;
 						IsStaticRect.height = 10;
-						DrawRectX( context.painter2D, IsStaticRect, Color.red, 10 );
+						RenderCommands.AnimationFrame.DrawRectX( context.painter2D, IsStaticRect, Color.red, 10 );
 					}
 				}
 			
@@ -247,13 +228,16 @@ namespace PopLottie
 				OnPreRender(ref Frame);
 				
 				Frame.Render(context.painter2D);
+				
 				if ( enableDebug )
+				{
 					Frame.RenderDebug(context.painter2D);
+				}
 			}
 			catch(Exception e)
 			{
 				Debug.LogException(e);
-				DrawRectX( context.painter2D, contentRect, Color.magenta); 
+				RenderCommands.AnimationFrame.DrawRectX( context.painter2D, contentRect, Color.magenta); 
 			}
 		}
 

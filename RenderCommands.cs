@@ -83,10 +83,11 @@ namespace PopLottie
 	
 	public struct AnimationText
 	{
-		public String	Text;
-		public String	FontName;
-		public float	FontSize;
-		public Vector2	Position;
+		public string		Text;
+		public string		FontName;
+		public float		FontSize;
+		public Vector2		Position;
+		public TextJustify	Justify;
 		
 		public AnimationText(String Text,String FontName,float FontSize,Vector2 Position)
 		{
@@ -94,6 +95,7 @@ namespace PopLottie
 			this.FontName = FontName;
 			this.FontSize = FontSize;
 			this.Position = Position;
+			this.Justify = TextJustify.Left;
 		}
 		
 
@@ -338,31 +340,71 @@ namespace PopLottie
 					Painter.ClosePath();
 				}
 				
-				void DrawRect(Rect rect,Color Colour)
-				{
-					Painter.BeginPath();
-					var tl = rect.min;
-					var tr = new Vector2(rect.xMax,rect.yMin);
-					var br = rect.max;
-					var bl = new Vector2(rect.xMin,rect.yMax);
-					Painter.MoveTo( tl );
-					Painter.LineTo( tr );
-					Painter.LineTo( br );
-					Painter.LineTo( bl );
-					Painter.LineTo( tl );
-					Painter.fillColor = Colour;
-					Painter.Fill();
-					Painter.ClosePath();
-				}
-				DrawRect(this.CanvasRect, new Color(0,0,1,0.1f) );
+				DrawRect( Painter, this.CanvasRect, new Color(0,0,1,0.1f) );
 				
 				foreach (var Shape in Shapes)
 				{
 					foreach (var Path in Shape.Paths)
 					{
 						Path.EnumDebugPoints(DrawDebugPoint);
+						
+						//	draw X for text boxes
+						foreach (var Text in Path.TextPaths ?? Array.Empty<AnimationText>())
+						{
+							//	to be accurate we need glyphs, but this is just for debug
+							var TextWidth = Text.FontSize * 0.8f;
+							TextWidth *= Text.Text.Length;
+							var TextHeight = Text.FontSize;
+							
+							Rect TextRect = new Rect( Text.Position, new Vector2(TextWidth,TextHeight) );
+							//	do justification
+							//	position is baseline
+							TextRect.y -= TextHeight;
+							if ( Text.Justify == TextJustify.Center )
+								TextRect.x -= TextWidth/2.0f; 
+							
+							DrawRectX( Painter, TextRect, Color.cyan );
+						}
 					}
 				}
+			}
+			
+			static public void DrawRect(UIElements.Painter2D Painter,Rect rect,Color Colour)
+			{
+				Painter.BeginPath();
+				var tl = rect.min;
+				var tr = new Vector2(rect.xMax,rect.yMin);
+				var br = rect.max;
+				var bl = new Vector2(rect.xMin,rect.yMax);
+				Painter.MoveTo( tl );
+				Painter.LineTo( tr );
+				Painter.LineTo( br );
+				Painter.LineTo( bl );
+				Painter.LineTo( tl );
+				Painter.fillColor = Colour;
+				Painter.Fill();
+				Painter.ClosePath();
+			}
+
+			static public void DrawRectX(UIElements.Painter2D painter2D,Rect rect,Color Colour,float LineWidth=1)
+			{
+				var TL = new Vector2( rect.xMin, rect.yMin );
+				var TR = new Vector2( rect.xMax, rect.yMin );
+				var BL = new Vector2( rect.xMin, rect.yMax );
+				var BR = new Vector2( rect.xMax, rect.yMax );
+				painter2D.BeginPath();
+				painter2D.MoveTo( TL );
+				painter2D.LineTo( TR );
+				painter2D.LineTo( BR );
+				painter2D.LineTo( BL );
+				painter2D.LineTo( TL );
+				painter2D.LineTo( BR );
+				painter2D.MoveTo( BL );
+				painter2D.LineTo( TR );
+				painter2D.ClosePath();
+				painter2D.lineWidth = LineWidth;
+				painter2D.strokeColor = Colour;
+				painter2D.Stroke();
 			}
 			
 		}
@@ -410,10 +452,6 @@ namespace PopLottie
 				Painter.ClosePath();
 			}
 			
-			public void				RenderDebug(UIElements.Painter2D Painter)
-			{
-				
-			}
 			
 		}
 	}

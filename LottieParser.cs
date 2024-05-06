@@ -1627,6 +1627,7 @@ namespace PopLottie
 					{
 						var WorldPosition = ParentTransform.LocalToWorldPosition(LinePosition);
 						var TextPath = new AnimationText(Text: Line, FontName: TextFrame.Text.FontFamily, FontSize: FontSize, Position: WorldPosition );
+						TextPath.Justify = TextFrame.s.Justify;
 						var Path = new RenderCommands.Path(TextPath);
 						Paths.Add( Path );
 						//	gr: need to scale this too?
