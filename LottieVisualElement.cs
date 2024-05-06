@@ -159,10 +159,35 @@ namespace PopLottie
 			{
 				var ItnervalMs = (long)interval.TotalMilliseconds;
 				//Debug.Log($"Changing redraw interval to {ItnervalMs}ms");
-				autoRedrawScheduler = schedule.Execute( MarkDirtyRepaint ).Every(ItnervalMs);
+				autoRedrawScheduler = schedule.Execute( OnRedrawTrigger ).Every(ItnervalMs);
 			}
 			
 			//	gr: trigger a single redraw here for static animations (and an immediate first frame redraw)
+			OnRedrawTrigger();
+		}
+		
+		void OnRedrawTrigger()
+		{
+			//	todo: calculate the next frame now... although we DONT have the content rect...
+			try
+			{
+				//		but we can at least get the text layers, and update the dom.
+				var Time = GetTime();
+				//	todo: we can't cache this for the redraw.... but we could store the time 
+				//		so positions line up
+				var Frame = LottieAnimation.Render( Time, contentRect, CanvasScaleMode );
+
+				//	apply some "pre render effects" (function named to match swift version)
+				OnPreRender(ref Frame);
+					
+				var TextPaths = Frame.GetTextPaths();
+				
+				UpdateTextElements(TextPaths);
+			}
+			catch(Exception e)
+			{
+				Debug.LogException(e);
+			}
 			MarkDirtyRepaint();
 		}
 		
@@ -229,19 +254,6 @@ namespace PopLottie
 				OnPreRender(ref Frame);
 				
 				Frame.Render(context.painter2D);
-				
-				var TextPaths = Frame.GetTextPaths();
-				//	cannot do this during generate geometry
-				//	update a pending list and trigger it
-				//UpdateTextElements(TextPaths);
-				async System.Threading.Tasks.Task TriggerUpdate()
-				{
-					//	this works as a hack, but causes 1 frame lag..
-					await Task.Yield();
-					UpdateTextElements(TextPaths);
-				};
-				if ( TextPaths.Count >0 )
-					TriggerUpdate();
 				
 				if ( enableDebug )
 				{
