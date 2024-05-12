@@ -1753,7 +1753,8 @@ namespace PopLottie
 						var EllipseCenter = GroupTransform.LocalToWorldPosition(LocalCenter);
 						
 						RenderEllipse.Center = EllipseCenter;
-						RenderEllipse.Radius = EllipseSize;
+						//	gr: this appears to be diameter, not radius
+						RenderEllipse.Radius = EllipseSize * 0.5f;
 						AddPath( new RenderCommands.Path(RenderEllipse) );
 					}
 					
