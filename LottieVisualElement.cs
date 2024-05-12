@@ -75,7 +75,7 @@ namespace PopLottie
 					throw new Exception($"Text-Asset Resource not found at {ResourceFilename} (Do not include extension)");
 				
 				//	parse file
-				LottieAnimation = new Animation(_animationJson.text);
+				LottieAnimation = Animation.Parse(_animationJson.text);
 				if ( LottieAnimation.IsStatic )
 				{
 					SetAutoRedraw(null);
