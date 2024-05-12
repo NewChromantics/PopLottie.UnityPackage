@@ -74,7 +74,8 @@ namespace PopLottie
 	}
 
 	//	https://lottiefiles.github.io/lottie-docs/playground/json_editor/
-	[Serializable] public class AnimatedVector
+	[Serializable] 
+	public class AnimatedVector
 	{
 		public int				a;
 		public bool				Animated => a!=0;
@@ -143,7 +144,8 @@ namespace PopLottie
 
 
 	//	gr: I've realised this is exactly the same struct as Frame_FloatArray
-	[Serializable] public struct Frame_Float : IFrame
+	[Serializable] 
+	public struct Frame_Float : IFrame
 	{
 		public ValueCurve	i;	//	ease in value
 		public ValueCurve	o;	//	ease out value
@@ -205,7 +207,8 @@ namespace PopLottie
 	}
 	
 	
-	[Serializable] public struct Frame_FloatArray : IFrame
+	[Serializable] 
+	public struct Frame_FloatArray : IFrame
 	{
 		public ValueCurve	i;
 		public ValueCurve	o;
@@ -215,7 +218,7 @@ namespace PopLottie
 		public float[]		s;	//	start value
 		public float[]		e;	//	end value
 		public FrameNumber	Frame	=> t;
-		public bool			IsTerminatingFrame => s==null;
+		public bool			IsTerminatingFrame => s==null || s.Length==0;
 		
 		bool				IsSameStartAndEndValues()
 		{
@@ -426,15 +429,20 @@ namespace PopLottie
 		{
 			if ( Component < 0 || Component >= Prev.Length )
 				throw new Exception($"Interpolate out of bounds");
-			var EaseInX = In?.x;
-			//var EaseInY = In?.y;
-			//var EaseOutX = Out?.x;
-			//var EaseOutY = Out?.y;
-			//	somtimes the curve has fewer components than the object... should this be linear for that component, or spread?
-			var EaseComponent = Component;
-			if ( EaseInX != null )
-				EaseComponent = Mathf.Min( Component, EaseInX.Length-1 );
-			return Interpolate( Prev[Component], Next[Component], Time, In?.x?[EaseComponent], In?.y?[EaseComponent], Out?.x?[EaseComponent], Out?.y?[EaseComponent] );
+				
+			if ( In != null && In.Value.x!=null && In.Value.x.Length > 0 )
+			{
+				var EaseInX = In?.x;
+				//var EaseInY = In?.y;
+				//var EaseOutX = Out?.x;
+				//var EaseOutY = Out?.y;
+				//	somtimes the curve has fewer components than the object... should this be linear for that component, or spread?
+				var EaseComponent = Component;
+				if ( EaseInX != null )
+					EaseComponent = Mathf.Clamp( Component, 0, EaseInX.Length-1 );
+				return Interpolate( Prev[Component], Next[Component], Time, In?.x?[EaseComponent], In?.y?[EaseComponent], Out?.x?[EaseComponent], Out?.y?[EaseComponent] );
+			}
+			return Interpolate( Prev[Component], Next[Component], Time, null, null, null, null );
 		}
 	
 		
@@ -491,11 +499,13 @@ namespace PopLottie
 	}
 	
 	
-		//	make this generic
+	//	todo: make this generic
+	[Serializable]
 	[JsonConverter(typeof(KeyframedConvertor<Keyframed_Float,Frame_Float>))]
 	public struct Keyframed_Float : IKeyframed<Frame_Float>
 	{
-		List<Frame_Float>		Frames;
+		[SerializeField]
+		public List<Frame_Float>		Frames;
 	
 		public int FrameCount => Frames.Count;
 
@@ -547,11 +557,13 @@ namespace PopLottie
 	}
 	
 	
-		//	make this generic
+	//	make this generic
 	[JsonConverter(typeof(KeyframedConvertor<Keyframed_FloatArray,Frame_FloatArray>))]
+	[Serializable]
 	public struct Keyframed_FloatArray : IKeyframed<Frame_FloatArray>
 	{
-		List<Frame_FloatArray>		Frames;
+		[SerializeField]
+		public List<Frame_FloatArray>		Frames;
 		
 		public int FrameCount => Frames.Count;
 
@@ -737,7 +749,7 @@ namespace PopLottie
 		}
 	}
 
-	internal enum ShapeType
+	public enum ShapeType
 	{
 		Fill,
 		Stroke,
@@ -816,7 +828,8 @@ namespace PopLottie
 	}
 	
 	[JsonConverter(typeof(ShapeConvertor))]
-	[Serializable] struct ShapeWrapper 
+	[Serializable] 
+	public struct ShapeWrapper 
 	{
 		public Shape		TheShape;
 		public ShapeType	Type => TheShape.Type; 
@@ -928,7 +941,8 @@ namespace PopLottie
 	}
 	
 
-	[Serializable] public abstract class Shape 
+	[Serializable] 
+	public abstract class Shape 
 	{
 		public int			ind;//	?
 		public int			np;		//	number of properties
@@ -943,7 +957,7 @@ namespace PopLottie
 		public bool			Hidden => hd;
 		public bool			Visible => !Hidden;
 		public String		ty;	
-		internal ShapeType	Type => ty switch
+		public ShapeType	Type => ty switch
 		{
 			"gr" => ShapeType.Group,
 			"sh" => ShapeType.Path,
@@ -961,7 +975,8 @@ namespace PopLottie
 	}
 	
 	//	only used in decoder to get base meta, but allows us to keep Shape abstract
-	[Serializable] class ShapeMetaOnly : Shape
+	[Serializable] 
+	class ShapeMetaOnly : Shape
 	{
 		public override bool IsStatic()
 		{
@@ -969,7 +984,8 @@ namespace PopLottie
 		}
 	}
 	
-	[Serializable] public class ShapeMerge : Shape
+	[Serializable] 
+	public class ShapeMerge : Shape
 	{
 		public int		mm;
 		public int		MergeMode => mm;	//	todo: enum
@@ -980,7 +996,8 @@ namespace PopLottie
 		}
 	}
 	
-	[Serializable] public class ShapeRectangle : Shape
+	[Serializable] 
+	public class ShapeRectangle : Shape
 	{
 		public AnimatedVector p;
 		public AnimatedVector s;
@@ -1001,7 +1018,8 @@ namespace PopLottie
 		}
 	}
 	
-	[Serializable] public class ShapePath : Shape
+	[Serializable] 
+	public class ShapePath : Shape
 	{
 		public AnimatedBezier	ks;	//	bezier for path
 		public AnimatedBezier	Path_Bezier => ks;
@@ -1029,7 +1047,8 @@ namespace PopLottie
 		}
 	}
 	
-	[Serializable] public class ShapeTrimPath : Shape
+	[Serializable] 
+	public class ShapeTrimPath : Shape
 	{
 		public AnimatedNumber	s;	//	segment start
 		public AnimatedNumber	e;	//	segment end
@@ -1061,7 +1080,8 @@ namespace PopLottie
 	}
 		
 				
-	[Serializable] public class ShapeFillAndStroke : Shape 
+	[Serializable] 
+	public class ShapeFillAndStroke : Shape 
 	{
 		public AnimatedColour	c;	//	colour
 		public AnimatedNumber	o;
@@ -1124,7 +1144,8 @@ namespace PopLottie
 	}
 		
 		
-	[Serializable] public class ShapeTransform : Shape 
+	[Serializable]
+	public class ShapeTransform : Shape 
 	{
 		//	transform
 		public AnimatedVector	p;	//	translation
@@ -1174,7 +1195,8 @@ namespace PopLottie
 	}
 	
 	
-	[Serializable] public class ShapeEllipse : Shape 
+	[Serializable] 
+	public class ShapeEllipse : Shape 
 	{
 		public AnimatedVector	s;
 		public AnimatedVector	p;
@@ -1282,7 +1304,8 @@ namespace PopLottie
 		
 	}
 
-	[Serializable] class ShapeGroup: Shape 
+	[Serializable] 
+	public class ShapeGroup: Shape 
 	{
 		public List<ShapeWrapper>		it;	//	children
 		public IEnumerable<Shape>		ChildrenFrontToBack => it.Select( sw => sw.TheShape );
@@ -1459,12 +1482,21 @@ namespace PopLottie
 		public TimeSpan	FrameToTime(FrameNumber Frame)
 		{
 			Frame -= FirstKeyFrame;
-			return TimeSpan.FromSeconds(Frame/ FramesPerSecond);
+			var Secs = Frame / FramesPerSecond;
+			if ( float.IsNaN(Secs) )
+			{
+				Debug.LogWarning($"NaN FrameToTime conversion; {Frame}/{FramesPerSecond}={Secs}");
+				return TimeSpan.Zero;
+			}
+			return TimeSpan.FromSeconds(Secs);
 		}
 		//	gr: output is really float, but trying int for simplicity for a moment...
 		public FrameNumber		TimeToFrame(TimeSpan Time,bool Looped)
 		{
 			var Duration = this.Duration.TotalSeconds;
+			if ( Duration <= 0.0 )
+				return FirstKeyFrame;
+				
 			var TimeSecs = Looped ? TimeSpan.FromSeconds(Time.TotalSeconds % Duration) : TimeSpan.FromSeconds(Mathf.Min((float)Time.TotalSeconds,(float)Duration));
 			var Frame = (TimeSecs.TotalSeconds * FramesPerSecond);
 			Frame += FirstKeyFrame;
@@ -1524,11 +1556,15 @@ namespace PopLottie
 		public MarkerMeta[]	Markers => markers ?? Array.Empty<MarkerMeta>();
 	}
 	
+	[Serializable]
 	public class Animation : IDisposable
 	{
-		Root				lottie;
-		public bool			IsStatic;
-		public bool			HasTextLayers;
+		[SerializeField] Root	lottie;
+		[SerializeField] bool	IsStaticCached;
+		[SerializeField] bool	HasTextLayersCached;
+
+		public bool				IsStatic => IsStaticCached;
+		public bool				HasTextLayers => HasTextLayersCached;
 
 		public Animation(string FileContents)
 		{
@@ -1545,8 +1581,8 @@ namespace PopLottie
 			
 			
 			lottie = (Root)serializer.Deserialize(new JTokenReader(Parsed), typeof(Root));
-			IsStatic = lottie.IsStatic();
-			HasTextLayers = lottie.HasAnyTextLayers();
+			IsStaticCached = lottie.IsStatic();
+			HasTextLayersCached = lottie.HasAnyTextLayers();
 			//Debug.Log($"Decoded lottie ok x{lottie.layers.Length} layers; static={IsStatic}");
 		}
 		

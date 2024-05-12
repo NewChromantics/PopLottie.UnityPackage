@@ -310,6 +310,8 @@ namespace PopLottie
 			
 			public void		Render(UIElements.Painter2D Painter)
 			{
+				if ( Shapes == null )
+					return;
 				foreach (var Shape in Shapes)
 				{
 					Shape.Render(Painter);
@@ -320,6 +322,9 @@ namespace PopLottie
 			{
 				var Texts = new List<AnimationText>();
 				
+				if ( Shapes == null )
+					return Texts;
+					
 				foreach (var Shape in Shapes)
 				{
 					foreach (var Path in Shape.Paths)
@@ -358,6 +363,7 @@ namespace PopLottie
 				
 				DrawRect( Painter, this.CanvasRect, new Color(0,0,1,0.1f) );
 				
+				var Shapes = this.Shapes?.ToArray() ?? Array.Empty<Shape>();
 				foreach (var Shape in Shapes)
 				{
 					foreach (var Path in Shape.Paths)

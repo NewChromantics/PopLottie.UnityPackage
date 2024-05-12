@@ -12,6 +12,19 @@ namespace PopLottie
 	{
 		Animation	LottieAnimation;
 		
+		//	for runtime/debug usage really
+		public Animation	Animation
+		{
+			get
+			{
+				return LottieAnimation;
+			}
+			set
+			{
+				LoadAnimation(value);
+			}
+		}
+		
 		//	current auto-redraw scheduler causing element to re-draw
 		IVisualElementScheduledItem	autoRedrawScheduler;
 
@@ -66,16 +79,36 @@ namespace PopLottie
 
 		List<TextElement>	TextElements = new();
 
+		static Animation LoadAnimationAsset(string Filename)
+		{
+			//	see if there's a .json (text asset)
+			var animationJson = Resources.Load<TextAsset>(Filename);
+			if ( animationJson != null )
+			{
+				var Animation = new Animation(animationJson.text);
+				return Animation;
+			}
+			
+			var animationAsset = Resources.Load<LottieAsset>(Filename);
+			if ( animationAsset != null )
+			{
+				return animationAsset.Animation;
+			}
+			
+			throw new Exception($"Failed to find text-Asset(.json) nor AnimationAsset(.lottie) resource at {Filename} (Do not include extension)");
+		}
+
 		void LoadAnimation()
+		{
+			var Asset = LoadAnimationAsset(resourceFilename);
+			LoadAnimation(Asset);
+		}
+
+		void LoadAnimation(PopLottie.Animation animation)
 		{
 			try
 			{
-				var _animationJson = Resources.Load<TextAsset>(ResourceFilename);
-				if ( _animationJson == null )
-					throw new Exception($"Text-Asset Resource not found at {ResourceFilename} (Do not include extension)");
-				
-				//	parse file
-				LottieAnimation = new Animation(_animationJson.text);
+				LottieAnimation = animation;
 				if ( LottieAnimation.IsStatic )
 				{
 					SetAutoRedraw(null);
