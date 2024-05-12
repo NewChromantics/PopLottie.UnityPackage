@@ -1868,7 +1868,9 @@ namespace PopLottie
 						}
 						else
 						{
-							Debug.Log($"Not a group...");
+							//	it's possible to have ungrouped shapes!
+							//RenderChild(Shape);
+							Debug.Log($"Not a group... {typeof(Shape)}");
 						}
 					}
 					catch(Exception e)
