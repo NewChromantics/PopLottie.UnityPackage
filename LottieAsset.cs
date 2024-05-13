@@ -134,10 +134,53 @@ public class LottieAsset : ScriptableObject
 		var RenderShader = Shader.Find("Unlit/VectorUI");
 		Material renderMat = new Material(RenderShader);
 		var Texture = RenderVectorImageToTexture2D(Vector,Width*RasterisedTextureScalar,Height*RasterisedTextureScalar,renderMat);
+		//var Texture = RenderFrameToTexture2D(Frame,VectorScalar,Width,Height,renderMat);
 
 		return Texture;
 	}
 	
+	public static Texture2D RenderFrameToTexture2D(PopLottie.RenderCommands.AnimationFrame Frame,float FrameQualityScalar, int width, int height, Material mat, int antiAliasing = 1)
+	{
+		if (width <= 0 || height <= 0)
+			return null;
+
+		RenderTexture rt = null;
+		var oldActive = RenderTexture.active;
+
+		var desc = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0) {
+			msaaSamples = antiAliasing,
+			sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear
+		};
+
+		rt = RenderTexture.GetTemporary(desc);
+
+		var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
+		var Mesh = MeshAndTransform.Item1;
+		var Transform = MeshAndTransform.Item2;
+		
+		//	gr: for some reason, this doesn't work with icons...
+		var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
+		cmdBuf.SetRenderTarget(rt);
+		cmdBuf.ClearRenderTarget(true, true, new Color(0,1,1,0.1f) );
+		cmdBuf.DrawMesh(Mesh, Transform, mat, 0);
+		Graphics.ExecuteCommandBuffer(cmdBuf);
+
+		RenderTexture.active = rt;
+		
+		var RenderParams = new RenderParams(mat);
+		//Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
+		//Graphics.DrawMesh(Mesh,Transform,mat,0);
+		
+		Texture2D copy = new Texture2D(width, height, TextureFormat.RGBA32, false);
+		copy.hideFlags = HideFlags.HideAndDontSave;
+		copy.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+		copy.Apply();
+
+		RenderTexture.active = oldActive;
+		RenderTexture.ReleaseTemporary(rt);
+
+		return copy;
+	}
 	
 	 public static Texture2D RenderVectorImageToTexture2D(VectorImageHack.InternalBridge.VectorImageUnlocked o, int width, int height, Material mat, int antiAliasing = 1)
 	{

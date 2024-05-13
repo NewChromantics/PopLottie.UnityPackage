@@ -33,7 +33,7 @@ namespace PopLottie
 			return VectorUnlocked;
 		}
 		
-		public static Mesh	GetMesh(VectorImageHack.InternalBridge.VectorImageUnlocked Vector)
+		public static Mesh	GetMesh(VectorImageHack.InternalBridge.VectorImageUnlocked Vector,bool FlipMesh)
 		{
 			var InputIndexes = Vector.indices;
 			var InputVertexes = Vector.vertices;
@@ -58,9 +58,12 @@ namespace PopLottie
 				var Pos2a = va.position;
 				var Pos2b = vb.position;
 				var Pos2c = vc.position;
-				Pos2a.y = Vector.height - Pos2a.y;
-				Pos2b.y = Vector.height - Pos2b.y;
-				Pos2c.y = Vector.height - Pos2c.y;
+				if ( FlipMesh )
+				{
+					Pos2a.y = Vector.height - Pos2a.y;
+					Pos2b.y = Vector.height - Pos2b.y;
+					Pos2c.y = Vector.height - Pos2c.y;
+				}
 				var Coloura = va.tint;
 				var Colourb = vb.tint;
 				var Colourc = vc.tint;
@@ -85,10 +88,10 @@ namespace PopLottie
 		//	FrameRectScale is the scale you rendered the AnimationFrame at if bigger than
 		//	the desired output (ie. to improve tesselation quality)
 		//	gr: consider putting this multiplier in the Render()->Painter2D but that's needless CPU work... 
-		public static (Mesh,Matrix4x4)	GetMesh(RenderCommands.AnimationFrame Frame,float FrameRectScale)
+		public static (Mesh,Matrix4x4)	GetMesh(RenderCommands.AnimationFrame Frame,float FrameRectScale,bool FlipMesh)
 		{
 			var Vector = GetImageMesh(Frame,RenderDebug:false);
-			var Mesh = GetMesh(Vector);
+			var Mesh = GetMesh(Vector,FlipMesh);
 			
 			//	undo our quality scalar
 			var ScaleDownf = 1.0f / FrameRectScale;
@@ -191,7 +194,7 @@ public class LottieMesh : MonoBehaviour
 	
 		//	gr: don't really wanna do this on cpu! and instead see if we can
 		//		dump the values into buffers for a shader
-		var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,QualityScalar);
+		var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,QualityScalar,FlipMesh:true);
 		var Mesh = MeshAndTransform.Item1;
 		var VectorToLocalTransform = MeshAndTransform.Item2;
 	
