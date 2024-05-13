@@ -12,6 +12,19 @@ namespace PopLottie
 	{
 		Animation	LottieAnimation;
 		
+		//	for runtime/debug usage really
+		public Animation	Animation
+		{
+			get
+			{
+				return LottieAnimation;
+			}
+			set
+			{
+				LoadAnimation(value);
+			}
+		}
+		
 		//	current auto-redraw scheduler causing element to re-draw
 		IVisualElementScheduledItem	autoRedrawScheduler;
 
