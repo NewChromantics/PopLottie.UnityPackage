@@ -13,7 +13,7 @@ namespace PopLottie
 		Animation	LottieAnimation;
 		
 		//	for runtime/debug usage really
-		public Animation	Animation
+		public Animation	DebugAssignedAnimation
 		{
 			get
 			{
