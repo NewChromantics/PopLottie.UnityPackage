@@ -15,10 +15,11 @@ using Object = UnityEngine.Object;
 //  this is actually the bodymovin spec
 namespace PopLottie
 {
+	using FrameNumber = System.Single;	//	float
+
 	//	spec is readable here
 	//	https://lottiefiles.github.io/lottie-docs/breakdown/bouncy_ball/
 
-	using FrameNumber = System.Single;	//	float
 
 	[Serializable] public struct AssetMeta
 	{
@@ -28,7 +29,7 @@ namespace PopLottie
 	[UnityEngine.Scripting.Preserve]
 	class ValueCurveConvertor : JsonConverter<ValueCurve>
 	{
-		static float[] GetFloats(JToken? TokenMaybe)
+		static float[] GetFloats(JToken TokenMaybe)
 		{
 			if ( TokenMaybe is JArray array )
 			{
@@ -1524,13 +1525,15 @@ namespace PopLottie
 		public MarkerMeta[]	Markers => markers ?? Array.Empty<MarkerMeta>();
 	}
 	
-	public class Animation : IDisposable
+	public class LottieAnimation : Animation
 	{
-		Root				lottie;
-		public bool			IsStatic;
-		public bool			HasTextLayers;
+		Root					lottie;
+		bool					IsStaticCache;
+		bool					HasTextLayersCache;
+		public override bool	IsStatic => IsStaticCache;
+		public override bool	HasTextLayers => HasTextLayersCache;
 
-		public Animation(string FileContents)
+		public LottieAnimation(string FileContents)
 		{
 			//	gr: can't use built in, as the structure changes depending on contents, and end up with clashing types
 			//lottie = JsonUtility.FromJson<Root>(FileContents);
@@ -1545,29 +1548,28 @@ namespace PopLottie
 			
 			
 			lottie = (Root)serializer.Deserialize(new JTokenReader(Parsed), typeof(Root));
-			IsStatic = lottie.IsStatic();
-			HasTextLayers = lottie.HasAnyTextLayers();
+			IsStaticCache = lottie.IsStatic();
+			HasTextLayersCache = lottie.HasAnyTextLayers();
 			//Debug.Log($"Decoded lottie ok x{lottie.layers.Length} layers; static={IsStatic}");
 		}
 		
-		public TimeSpan Duration => lottie.Duration;
-		public int		FrameCount => lottie.LastKeyFrame-lottie.FirstKeyFrame;
+		public override TimeSpan	Duration => lottie.Duration;
+		public override int			FrameCount => lottie.LastKeyFrame-lottie.FirstKeyFrame;
+		public override FrameNumber	TimeToFrame(TimeSpan Time,bool Looped)
+		{
+			return lottie.TimeToFrame(Time,Looped);
+		}
+		public override TimeSpan	FrameToTime(FrameNumber Frame)
+		{
+			return lottie.FrameToTime(Frame);
+		}
 
-		public void Dispose()
+		public override void Dispose()
 		{
 			lottie = default;
 		}
-		
-		
-		
-		public RenderCommands.AnimationFrame Render(TimeSpan PlayTime, Rect ContentRect,ScaleMode scaleMode)
-		{
-			//	get the time, move it to lottie-anim space and loop it
-			var Frame = lottie.TimeToFrame(PlayTime,Looped:true);
-			return Render( Frame, ContentRect, scaleMode );
-		}
 			
-		public RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
+		public override RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
 		{
 			//Debug.Log($"Time = {Time.TotalSeconds} ({lottie.FirstKeyframe.TotalSeconds}...{lottie.LastKeyframe.TotalSeconds})");
 
@@ -1751,7 +1753,8 @@ namespace PopLottie
 						var EllipseCenter = GroupTransform.LocalToWorldPosition(LocalCenter);
 						
 						RenderEllipse.Center = EllipseCenter;
-						RenderEllipse.Radius = EllipseSize;
+						//	gr: this appears to be diameter, not radius
+						RenderEllipse.Radius = EllipseSize * 0.5f;
 						AddPath( new RenderCommands.Path(RenderEllipse) );
 					}
 					
@@ -1865,7 +1868,9 @@ namespace PopLottie
 						}
 						else
 						{
-							Debug.Log($"Not a group...");
+							//	it's possible to have ungrouped shapes!
+							//RenderChild(Shape);
+							Debug.Log($"Not a group... {typeof(Shape)}");
 						}
 					}
 					catch(Exception e)
