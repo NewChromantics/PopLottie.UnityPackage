@@ -1,13 +1,8 @@
 using System;
-using System.Collections.Generic;
-using PopLottie;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
-using Unity.VectorGraphics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using VectorImageHack;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.AssetImporters;

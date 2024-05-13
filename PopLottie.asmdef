@@ -1,11 +1,7 @@
 {
     "name": "PopLottie",
     "rootNamespace": "",
-    "references": [
-        "GUID:68550284b645f4b9894995579f34290a",
-        "GUID:23e4d4cdb75716543b20190a2c20c09a",
-        "GUID:720d33f97ce5b450cbb9c9941462dee9"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
