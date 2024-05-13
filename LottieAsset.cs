@@ -120,8 +120,6 @@ public class LottieAsset : ScriptableObject
 		//  render the asset to a painter to get a vector image
 		//  then rasterise the vector
 		var Anim = this.Animation;
-		var Painter = new UnityEngine.UIElements.Painter2D();
-		
 		//  making the vector larger, results in a much higher quality tesselation
 		//  when it renders, it shrinks to bounds, so we kinda want to scale this to
 		//  the width/height
@@ -130,76 +128,69 @@ public class LottieAsset : ScriptableObject
 		
 		var RenderRect = new Rect(0,0,Width*VectorScalar,Height*VectorScalar);
 		var Frame = Anim.Render(0.0f,RenderRect,ScaleMode.ScaleToFit);
-		Frame.Render(Painter);
 		
-		var Vector = ScriptableObject.CreateInstance<VectorImage>();
-		if ( !Painter.SaveToVectorImage(Vector) )
-			throw new Exception("Failed to make vector image from painter");
-
-		//  gr: VectorImage is serialisable... so can we access all the scriptable object's contents by serialising?
-		var VectorJson = JsonUtility.ToJson(Vector);
-		var VectorUnlocked = JsonUtility.FromJson<VectorImageHack.InternalBridge.VectorImageUnlocked>(VectorJson);
+		var Vector = PopLottie.AnimationMesh.GetImageMesh(Frame,RenderDebug:false);
 
 		var RenderShader = Shader.Find("Unlit/VectorUI");
 		Material renderMat = new Material(RenderShader);
-		var Texture = RenderVectorImageToTexture2D(VectorUnlocked,Width*RasterisedTextureScalar,Height*RasterisedTextureScalar,renderMat);
+		var Texture = RenderVectorImageToTexture2D(Vector,Width*RasterisedTextureScalar,Height*RasterisedTextureScalar,renderMat);
 
 		return Texture;
 	}
 	
 	
 	 public static Texture2D RenderVectorImageToTexture2D(VectorImageHack.InternalBridge.VectorImageUnlocked o, int width, int height, Material mat, int antiAliasing = 1)
+	{
+		if (o == null)
+			return null;
+
+		if (width <= 0 || height <= 0)
+			return null;
+
+		RenderTexture rt = null;
+		var oldActive = RenderTexture.active;
+
+		var desc = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0) {
+			msaaSamples = antiAliasing,
+			sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear
+		};
+
+		rt = RenderTexture.GetTemporary(desc);
+		RenderTexture.active = rt;
+		
+		Vector2[] vertices = null;
+		UInt16[] indices = null;
+		Vector2[] uvs = null;
+		Color[] colors = null;
+		Vector2[] settingIndices = null;
+		Texture2D atlas = null;
+		Vector2 size = Vector2.zero;
+		VectorImageHack.InternalBridge.GradientSettings/*Bridge*/[] settings = null;
+		if (VectorImageHack.InternalBridge.GetDataFromVectorImage(o, ref vertices, ref indices, ref uvs, ref colors, ref settingIndices, ref settings, ref atlas, ref size))
 		{
-			if (o == null)
-				return null;
-
-			if (width <= 0 || height <= 0)
-				return null;
-
-			RenderTexture rt = null;
-			var oldActive = RenderTexture.active;
-
-			var desc = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0) {
-				msaaSamples = antiAliasing,
-				sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear
-			};
-
-			rt = RenderTexture.GetTemporary(desc);
-			RenderTexture.active = rt;
-			
-			Vector2[] vertices = null;
-			UInt16[] indices = null;
-			Vector2[] uvs = null;
-			Color[] colors = null;
-			Vector2[] settingIndices = null;
-			Texture2D atlas = null;
-			Vector2 size = Vector2.zero;
-			VectorImageHack.InternalBridge.GradientSettings/*Bridge*/[] settings = null;
-			if (VectorImageHack.InternalBridge.GetDataFromVectorImage(o, ref vertices, ref indices, ref uvs, ref colors, ref settingIndices, ref settings, ref atlas, ref size))
-			{
-				vertices = vertices.Select(v => new Vector2(v.x/size.x, 1.0f-v.y/size.y)).ToArray();
-				//Texture2D atlasWithEncodedSettings = atlas != null ? BuildAtlasWithEncodedSettings(settings, atlas) : null;
-				Texture2D atlasWithEncodedSettings = null;
-				RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat);
-				Texture2D.DestroyImmediate(atlasWithEncodedSettings);
-			}
-			else
-			{
-				RenderTexture.active = oldActive;
-				RenderTexture.ReleaseTemporary(rt);
-				return null;
-			}
-
-			Texture2D copy = new Texture2D(width, height, TextureFormat.RGBA32, false);
-			copy.hideFlags = HideFlags.HideAndDontSave;
-			copy.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-			copy.Apply();
-
+			vertices = vertices.Select(v => new Vector2(v.x/size.x, 1.0f-v.y/size.y)).ToArray();
+			//Texture2D atlasWithEncodedSettings = atlas != null ? BuildAtlasWithEncodedSettings(settings, atlas) : null;
+			Texture2D atlasWithEncodedSettings = null;
+			RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat);
+			Texture2D.DestroyImmediate(atlasWithEncodedSettings);
+		}
+		else
+		{
 			RenderTexture.active = oldActive;
 			RenderTexture.ReleaseTemporary(rt);
-
-			return copy;
+			return null;
 		}
+
+		Texture2D copy = new Texture2D(width, height, TextureFormat.RGBA32, false);
+		copy.hideFlags = HideFlags.HideAndDontSave;
+		copy.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+		copy.Apply();
+
+		RenderTexture.active = oldActive;
+		RenderTexture.ReleaseTemporary(rt);
+
+		return copy;
+	}
 	
 	internal static void RenderFromArrays(Vector2[] vertices, UInt16[] indices, Vector2[] uvs, Color[] colors, Vector2[] settings, Texture2D texture, Material mat, bool clear = true)
 	{
