@@ -8,7 +8,7 @@ namespace PopLottie
 {
 	public static class AnimationMesh
 	{
-		public static VectorImageHack.InternalBridge.VectorImageUnlocked	GetImageMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool RenderDebug)
+		public static VectorImageHack.InternalBridge.VectorImageUnlocked	GetImageMesh(RenderCommands.AnimationFrame Frame,bool RenderDebug)
 		{
 			var Painter = new UnityEngine.UIElements.Painter2D();
 		
@@ -80,6 +80,34 @@ namespace PopLottie
 			
 			return Output;
 		}
+		
+		
+		//	FrameRectScale is the scale you rendered the AnimationFrame at if bigger than
+		//	the desired output (ie. to improve tesselation quality)
+		//	gr: consider putting this multiplier in the Render()->Painter2D but that's needless CPU work... 
+		public static (Mesh,Matrix4x4)	GetMesh(RenderCommands.AnimationFrame Frame,float FrameRectScale)
+		{
+			var Vector = GetImageMesh(Frame,RenderDebug:false);
+			var Mesh = GetMesh(Vector);
+			
+			//	undo our quality scalar
+			var ScaleDownf = 1.0f / FrameRectScale;
+			var ScaleDown = Matrix4x4.Scale( new Vector3(ScaleDownf,ScaleDownf,1) );
+			//	gr: we need to do y = height - y, not *-1. This is current done in the vector->mesh stuff
+			var Flip = Matrix4x4.Scale( new Vector3(1,1,1));
+			
+			//	Vector width/height is the tesselated output bounds, rather than canvas size, so this centering moves around
+			//	the vertexes are also shifted to the top left of min/max... but we never know what that is
+			//	so as it stands, we never know the real origin frame-to-frame
+			//var Center = Matrix4x4.Translate( new Vector3(Vector.width*-0.5f,Vector.height*-0.5f,0) );
+			//var Center = Matrix4x4.Translate( new Vector3(RenderRect.width*-0.5f,RenderRect.height*-0.5f,0) );
+			var Center = Matrix4x4.Translate( new Vector3(0,0,0) );
+			
+			//var RenderObjectToWorld = Flip * ScaleDown * LocalToWorld;
+			var RenderObjectToWorld = ScaleDown * Center * Flip;
+			return (Mesh,RenderObjectToWorld);
+		}
+		
 	}	
 }
 
@@ -161,30 +189,16 @@ public class LottieMesh : MonoBehaviour
 		//Debug.Log($"Playing frame {RenderTime}");
 		var Frame = anim.Render(RenderTime,RenderRect,ScaleMode.ScaleToFit);
 	
-		var Vector = PopLottie.AnimationMesh.GetImageMesh(Frame,RenderDebug);
-
 		//	gr: don't really wanna do this on cpu! and instead see if we can
 		//		dump the values into buffers for a shader
-		var Mesh = PopLottie.AnimationMesh.GetMesh(Vector);
+		var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,QualityScalar);
+		var Mesh = MeshAndTransform.Item1;
+		var VectorToLocalTransform = MeshAndTransform.Item2;
 	
 		var RenderParams = new RenderParams(material);
-		
 		var LocalToWorld = this.transform.localToWorldMatrix;
-		//	undo our quality scalar
-		var ScaleDownf = 1.0f / QualityScalar;
-		var ScaleDown = Matrix4x4.Scale( new Vector3(ScaleDownf,ScaleDownf,1) );
-		//	gr: we need to do y = height - y, not *-1. This is current done in the vector->mesh stuff
-		var Flip = Matrix4x4.Scale( new Vector3(1,1,1));
+		var RenderObjectToWorld = LocalToWorld * VectorToLocalTransform;
 		
-		//	Vector width/height is the tesselated output bounds, rather than canvas size, so this centering moves around
-		//	the vertexes are also shifted to the top left of min/max... but we never know what that is
-		//	so as it stands, we never know the real origin frame-to-frame
-		//var Center = Matrix4x4.Translate( new Vector3(Vector.width*-0.5f,Vector.height*-0.5f,0) );
-		//var Center = Matrix4x4.Translate( new Vector3(RenderRect.width*-0.5f,RenderRect.height*-0.5f,0) );
-		var Center = Matrix4x4.Translate( new Vector3(0,0,0) );
-		
-		//var RenderObjectToWorld = Flip * ScaleDown * LocalToWorld;
-		var RenderObjectToWorld = LocalToWorld * ScaleDown * Center * Flip;
 		Graphics.RenderMesh(RenderParams,Mesh,0,RenderObjectToWorld);
 		
 		//Debug.Log($"Triangle count; {Vector.indices.Length/3} - size{Vector.size}");
