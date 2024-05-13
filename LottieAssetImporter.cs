@@ -19,7 +19,7 @@ public class LottieAssetImporter : ScriptedImporter
     public override void OnImportAsset(AssetImportContext ctx)
     {
         var Json = System.IO.File.ReadAllText(ctx.assetPath);
-        var Animation = new PopLottie.Animation(Json);
+        //var Animation = new PopLottie.Animation(Json);
         
         var animationContainer = ScriptableObject.CreateInstance<LottieAsset>();
         //animationContainer.Animation = Animation;

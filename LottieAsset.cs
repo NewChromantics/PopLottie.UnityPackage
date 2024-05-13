@@ -12,7 +12,7 @@ using UnityEditor.AssetImporters;
 public class LottieAsset : ScriptableObject
 {
     //public PopLottie.Animation  Animation;  //  cache
-    public PopLottie.Animation  Animation => new PopLottie.Animation(Json);
+    public PopLottie.Animation  Animation => PopLottie.Animation.Parse(Json);
     public string               Json;
     
     public Texture2D            GetPreview(int Width,int Height)
