@@ -43,7 +43,7 @@ Shader "PopLottie/LottieSdfPath"
 			#define NULL_PATH_COLOUR		(ENABLE_DEBUG_INVISIBLE ? float4(1,0,0,0.1) : float4(0,0,0,0) )
 #define NULL_DISTANCE	999
 #define DEBUG_CONTROLPOINT_SIZE	0.01
-#define DEBUG_BEZIER_CONTROLPOINTS true
+#define DEBUG_BEZIER_CONTROLPOINTS false
 
 			float Debug_StrokeScale;
 
@@ -80,8 +80,43 @@ Shader "PopLottie/LottieSdfPath"
 				return Distance;
 			}
 
+
 			//	https://www.shadertoy.com/view/4sKyzW
-			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float End)
+			#include "SignedDistanceCubicBezier.cginc"
+
+			float TimeAlongLine2(vec2 Position,vec2 Start,vec2 End)
+			{
+				vec2 Direction = End - Start;
+				float DirectionLength = length(Direction);
+				float Projection = dot( Position - Start, Direction) / (DirectionLength*DirectionLength);
+				
+				return Projection;
+			}
+
+			vec2 NearestToLine2(vec2 Position,vec2 Start,vec2 End)
+			{
+				float Projection = TimeAlongLine2( Position, Start, End );
+				
+				//	past start
+				Projection = max( 0, Projection );
+				//	past end
+				Projection = min( 1, Projection );
+				
+				//	is using lerp faster than
+				//	Near = Start + (Direction * Projection);
+				float2 Near = lerp( Start, End, Projection );
+				return Near;
+			}
+
+			//	https://github.com/NewChromantics/PopCave/blob/be8766dd03eb46430bf4f8a906db86ed1973a360/PopCave/DrawLines.frag.glsl#L59
+			float DistanceToLine2(vec2 Position,vec2 Start,vec2 End)
+			{
+				vec2 Near = NearestToLine2( Position, Start, End );
+				return length( Near - Position );
+			}
+
+
+			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
 				float Distance = NULL_DISTANCE;
 				//	debug, draw control points
@@ -91,11 +126,29 @@ Shader "PopLottie/LottieSdfPath"
 					Distance = min( Distance, DistanceToEllipse( Position, Start, Rad ) );
 					Distance = min( Distance, DistanceToEllipse( Position, ControlPointIn, Rad*0.5f ) );
 					Distance = min( Distance, DistanceToEllipse( Position, ControlPointOut, Rad*0.5f ) );
-					//Distance = min( Distance, DistanceToEllipse( Position, End, Rad ) );
+					Distance = min( Distance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
+				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
+				float BezierDistance = DistanceToLine2(Position,Start,End);
+				
+				//	work out which side we're on...
+				vec2 lineDir = End - Start;
+				vec2 perpDir = vec2(lineDir.y, -lineDir.x);
+				vec2 dirToPt1 = Start - Position;
+				bool Right = dot(perpDir, dirToPt1) < 0.0f;
+				if ( Right )
+				{
+					BezierDistance-= 0.01f;
+				}
+				else
+				{
+					BezierDistance+= 9.6f;
+				}
+					
 
-
+				//float sgn = cubic_bezier_sign(uv,p0,p1,p2,p3);
+				Distance = min( Distance, BezierDistance );
 				return Distance;
 			}
 

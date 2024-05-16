@@ -210,11 +210,14 @@ public class LottieSdf : MonoBehaviour
 				}
 				else if ( Path.BezierPath?.Length > 0 )
 				{
-					foreach ( var Point in Path.BezierPath )
+					for ( var p=0;	p<Path.BezierPath.Length;	p++ )
 					{
+						var Point = Path.BezierPath[p];
+						var NextPoint = Path.BezierPath[(p+1)%Path.BezierPath.Length];
 						var PathData = new Matrix4x4();
 						PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_BEZIER,0,0,0) );
-						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Point.Position.x, Point.Position.y*FlipMult, 0, 0 ) );
+						var End = NextPoint.Position;
+						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Point.Position.x, Point.Position.y*FlipMult, End.x, End.y*FlipMult ) );
 						PathData.SetRow(PATH_DATAROW_POSITION+1, new Vector4( Point.ControlPointIn.x, Point.ControlPointIn.y*FlipMult, Point.ControlPointOut.x, Point.ControlPointOut.y*FlipMult ) );
 						PathPathDatas.Add(PathData);
 					}
