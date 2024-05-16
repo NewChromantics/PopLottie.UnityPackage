@@ -3,7 +3,10 @@ guid: d74321ddfcfe5422e94fed7d1b7bb5a7
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - animationAsset: {instanceID: 0}
+  - shader: {instanceID: 0}
+  - material: {fileID: 2100000, guid: bf2ce027169f342babd128c82dd8a96f, type: 2}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
