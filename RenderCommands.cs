@@ -158,6 +158,7 @@ namespace PopLottie
 			public Vector3[]		LinearPath;
 			public Ellipse?			EllipsePath;
 			public AnimationText[]	TextPaths;
+			public Rect?			Bounds => CalculateBounds();	//	cache this in future
 			
 			public Path(IEnumerable<BezierPoint> BezierPath)
 			{
@@ -295,6 +296,58 @@ namespace PopLottie
 					}
 				}
 			}
+			
+			//	returns null if there's nothing to calculate bounds from.
+			//	this should go, a path should _always_ have some bounds, even for text layers, which ideally 
+			//	would gather there size by here, but may not if we don't have glyph info.
+			//	Really to solve this we need a glyph-provider system for the renderer (uitoolkit, shader, tesselator etc)
+			public Rect? CalculateBounds()
+			{
+				float Minx = Single.MaxValue;
+				float Miny = Single.MaxValue;
+				float Maxx = Single.MinValue;
+				float Maxy = Single.MinValue;
+				bool AnySet = false;
+
+				void Accumulate(float x,float y)
+				{
+					Minx = Mathf.Min( x, Minx );
+					Miny = Mathf.Min( y, Miny );
+					Maxx = Mathf.Max( x, Maxx );
+					Maxy = Mathf.Max( y, Maxy );
+					AnySet = true;
+				}
+				
+				if ( EllipsePath is Ellipse e )
+				{
+					Accumulate( e.Center.x - e.Radius.x, e.Center.y - e.Radius.y );
+					Accumulate( e.Center.x + e.Radius.x, e.Center.y + e.Radius.y );
+				}
+				
+				//	gr: obviously not accurate for bezier paths
+				if ( BezierPath?.Length > 0 )
+				{
+					foreach (var Point in BezierPath)
+					{
+						Accumulate( Point.Position.x, Point.Position.y );
+					}
+				}
+				
+				if ( LinearPath?.Length > 0 )
+				{
+					foreach (var Point in LinearPath)
+					{
+						Accumulate( Point.x, Point.y );
+					}
+				}
+				
+				if ( !AnySet )
+					return null;
+					
+				var Width = Maxx - Minx;
+				var Height = Maxy - Miny;
+				return new Rect( Minx, Miny, Width, Height );
+			}
 		}
 		
 		public struct AnimationFrame
@@ -429,7 +482,7 @@ namespace PopLottie
 		//	rename to AnimationShape
 		public struct Shape
 		{
-			//	these paths are renderered sequentially to cause holes
+			//	these paths are rendered sequentially to cause holes
 			public Path[]				Paths;
 			public ShapeStyle			Style;
 			public string				Name;
