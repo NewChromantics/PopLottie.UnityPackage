@@ -19,9 +19,10 @@ namespace PopLottie
 public class LottieSdf : MonoBehaviour
 {
 	//	shader constants
-	const int PATH_DATA_COUNT = 100;
+	const int PATH_DATA_COUNT = 300;
 	const int PATH_DATATYPE_NULL = 0;
 	const int PATH_DATATYPE_ELLIPSE = 1;
+	const int PATH_DATATYPE_BEZIER = 2;
 	const int PATH_DATAROW_META = 0;
 	const int PATH_DATAROW_POSITION = 1;
 
@@ -105,6 +106,8 @@ public class LottieSdf : MonoBehaviour
 		var VectorToLocalTransform = Matrix4x4.identity;
 	
 		var RenderParams = new RenderParams(material);
+		//	gr: pad out this array to stop unity baking the max size
+		meshAndPathDatas.PathDatas.AddRange( new Matrix4x4[PATH_DATA_COUNT-meshAndPathDatas.PathDatas.Count] );
 		material.SetMatrixArray("PathDatas",meshAndPathDatas.PathDatas);
 		
 		var LocalToWorld = this.transform.localToWorldMatrix;
@@ -196,21 +199,40 @@ public class LottieSdf : MonoBehaviour
 			var Paths = RenderFirstToLast ? Shape.Paths : Shape.Paths.Reverse();
 			foreach (var Path in Paths )
 			{
+				List<Matrix4x4> PathPathDatas = new ();
 				//	make path data
-				var PathData = new Matrix4x4();
 				if ( Path.EllipsePath is RenderCommands.Ellipse e )
 				{
+					var PathData = new Matrix4x4();
 					PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_ELLIPSE,0,0,0) );
 					PathData.SetRow(PATH_DATAROW_POSITION, new Vector4( e.Center.x, e.Center.y*FlipMult, e.Radius.x, e.Radius.y ) );
+					PathPathDatas.Add(PathData);
+				}
+				else if ( Path.BezierPath?.Length > 0 )
+				{
+					foreach ( var Point in Path.BezierPath )
+					{
+						var PathData = new Matrix4x4();
+						PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_BEZIER,0,0,0) );
+						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Point.Position.x, Point.Position.y*FlipMult, 0, 0 ) );
+						PathData.SetRow(PATH_DATAROW_POSITION+1, new Vector4( Point.ControlPointIn.x, Point.ControlPointIn.y*FlipMult, Point.ControlPointOut.x, Point.ControlPointOut.y*FlipMult ) );
+						PathPathDatas.Add(PathData);
+					}
 				}
 				else
 				{
+					var PathData = new Matrix4x4();
 					PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_NULL,0,0,0) );
+					PathPathDatas.Add(PathData);
 				}
-				var PathIndex = PathDatas.Count;
-				PathDatas.Add(PathData);
+				
+				foreach ( var SubPathData in PathPathDatas )
+				{
+					var PathIndex = PathDatas.Count;
+					PathDatas.Add(SubPathData);
 			
-				AddQuad( Path.Bounds, PathIndex, z, Fill, Stroke, StrokeWidth??0 );
+					AddQuad( Path.Bounds, PathIndex, z, Fill, Stroke, StrokeWidth??0 );
+				}
 				z++;
 			}
 		}

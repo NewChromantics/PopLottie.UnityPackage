@@ -38,22 +38,28 @@ Shader "PopLottie/LottieSdfPath"
 				int PathDataIndex : TEXCOORD4;
 			};
 
-			#define ENABLE_DEBUG_INVISIBLE	true
+			#define ENABLE_DEBUG_INVISIBLE	false
 			#define OUTSIDE_COLOUR			(ENABLE_DEBUG_INVISIBLE ? float4(0,1,1,0.1) : float4(0,0,0,0) )
 			#define NULL_PATH_COLOUR		(ENABLE_DEBUG_INVISIBLE ? float4(1,0,0,0.1) : float4(0,0,0,0) )
+#define NULL_DISTANCE	999
+#define DEBUG_CONTROLPOINT_SIZE	0.01
+#define DEBUG_BEZIER_CONTROLPOINTS true
+
 			float Debug_StrokeScale;
 
 			//	todo: how to represent bezier paths...
-			#define PATH_DATA_COUNT			100
+			#define PATH_DATA_COUNT			300
 			#define PATH_DATATYPE_UNINITIALISED	-1
 			#define PATH_DATATYPE_NULL		0
 			#define PATH_DATATYPE_ELLIPSE	1
+			#define PATH_DATATYPE_BEZIER	2
 			#define PATH_DATAROW_META		0
 			#define PATH_DATAROW_POSITION	1
 
+
 			uniform float4x4 PathDatas[PATH_DATA_COUNT];
 
-			
+
 
 			v2f vert (appdata v)
 			{
@@ -66,6 +72,33 @@ Shader "PopLottie/LottieSdfPath"
 				o.StrokeWidth = v.PathMeta.y * Debug_StrokeScale;
 				return o;
 			}
+	
+			float DistanceToEllipse(float2 Position,float2 Center,float2 Radius)
+			{
+				float2 Delta = Position - Center;
+				float Distance = length(Delta) - Radius;
+				return Distance;
+			}
+
+			//	https://www.shadertoy.com/view/4sKyzW
+			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float End)
+			{
+				float Distance = NULL_DISTANCE;
+				//	debug, draw control points
+				if ( DEBUG_BEZIER_CONTROLPOINTS )
+				{
+					float2 Rad = float2(DEBUG_CONTROLPOINT_SIZE,DEBUG_CONTROLPOINT_SIZE);
+					Distance = min( Distance, DistanceToEllipse( Position, Start, Rad ) );
+					Distance = min( Distance, DistanceToEllipse( Position, ControlPointIn, Rad*0.5f ) );
+					Distance = min( Distance, DistanceToEllipse( Position, ControlPointOut, Rad*0.5f ) );
+					//Distance = min( Distance, DistanceToEllipse( Position, End, Rad ) );
+				}
+
+
+
+				return Distance;
+			}
+
 
 			float DistanceToPath(float2 Position,float4x4 PathData,out int PathDataType)
 			{
@@ -74,12 +107,18 @@ Shader "PopLottie/LottieSdfPath"
 				{
 					float2 EllipseCenter = PathData[PATH_DATAROW_POSITION].xy;
 					float EllipseRadius = PathData[PATH_DATAROW_POSITION].z;
-					float2 Delta = Position - EllipseCenter;
-					float Distance = length(Delta) - EllipseRadius;
-					return Distance;
+					return DistanceToEllipse( Position, EllipseCenter, EllipseRadius );
+				}
+				if ( PathDataType == PATH_DATATYPE_BEZIER )
+				{
+					float2 Start = PathData[PATH_DATAROW_POSITION].xy;
+					float2 End = PathData[PATH_DATAROW_POSITION].zw;
+					float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
+					float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
+					return DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End );
 				}
 
-				return 999;
+				return NULL_DISTANCE;
 			}
 
 			float DistanceToPath(float2 Position,int PathIndex,out int PathDataType)
@@ -95,7 +134,7 @@ Shader "PopLottie/LottieSdfPath"
 
 				if ( PathDataType == PATH_DATATYPE_NULL )
 				{
-					Distance = -1;	//	fill!
+					Distance = -1;	//	fill the quad
 					//return NULL_PATH_COLOUR;
 				}
 

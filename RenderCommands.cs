@@ -329,7 +329,13 @@ namespace PopLottie
 				{
 					foreach (var Point in BezierPath)
 					{
-						Accumulate( Point.Position.x, Point.Position.y );
+						float Padding = 2.0f;
+						Accumulate( Point.Position.x-Padding, Point.Position.y-Padding );
+						Accumulate( Point.Position.x+Padding, Point.Position.y+Padding );
+						Accumulate( Point.ControlPointIn.x-Padding, Point.ControlPointIn.y-Padding );
+						Accumulate( Point.ControlPointIn.x+Padding, Point.ControlPointIn.y+Padding );
+						Accumulate( Point.ControlPointOut.x-Padding, Point.ControlPointOut.y-Padding );
+						Accumulate( Point.ControlPointOut.x+Padding, Point.ControlPointOut.y+Padding );
 					}
 				}
 				
