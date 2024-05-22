@@ -1713,7 +1713,7 @@ namespace PopLottie
 							var BezierPoint = new RenderCommands.BezierPoint();
 							BezierPoint.ControlPointIn = ControlPoint0;
 							BezierPoint.ControlPointOut = ControlPoint1;
-							BezierPoint.Position = VertexPosition;
+							BezierPoint.End = VertexPosition;
 							RenderPoints.Add(BezierPoint);
 						}
 						
@@ -1730,7 +1730,7 @@ namespace PopLottie
 								var BezierPoint = new RenderCommands.BezierPoint();
 								BezierPoint.ControlPointIn = VertexPosition;
 								BezierPoint.ControlPointOut = VertexPosition;
-								BezierPoint.Position = VertexPosition;
+								BezierPoint.End = VertexPosition;
 								RenderPoints.Add(BezierPoint);
 							}
 							else

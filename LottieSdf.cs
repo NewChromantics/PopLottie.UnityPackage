@@ -148,7 +148,7 @@ public class LottieSdf : MonoBehaviour
 				return;
 			var rect = bounds.Value;
 			
-			var ClearColour = new Color(1,0,1,0.1f);
+			var ClearColour = new Color(1,0,1,0.5f);
 			var FillColour = FillColourMaybe ?? ClearColour;
 			var StrokeColour = StrokeColourMaybe ?? ClearColour;
 			var PathMeta = new Vector4( PathIndex, StrokeWidth, 0, 0 );
@@ -210,15 +210,19 @@ public class LottieSdf : MonoBehaviour
 				}
 				else if ( Path.BezierPath?.Length > 0 )
 				{
-					for ( var p=0;	p<Path.BezierPath.Length;	p++ )
+					
+					for ( var p=1;	p<Path.BezierPath.Length;	p++ )
 					{
-						var Point = Path.BezierPath[p];
-						var NextPoint = Path.BezierPath[(p+1)%Path.BezierPath.Length];
+						var NextPoint = Path.BezierPath[p];
+						var PrevPoint = Path.BezierPath[p-1];
 						var PathData = new Matrix4x4();
 						PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_BEZIER,0,0,0) );
-						var End = NextPoint.Position;
-						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Point.Position.x, Point.Position.y*FlipMult, End.x, End.y*FlipMult ) );
-						PathData.SetRow(PATH_DATAROW_POSITION+1, new Vector4( Point.ControlPointIn.x, Point.ControlPointIn.y*FlipMult, Point.ControlPointOut.x, Point.ControlPointOut.y*FlipMult ) );
+						var Start = PrevPoint.End;
+						var ControlIn = NextPoint.ControlPointIn;
+						var ControlOut = NextPoint.ControlPointOut;
+						var End = NextPoint.End;
+						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Start.x, Start.y*FlipMult, End.x, End.y*FlipMult ) );
+						PathData.SetRow(PATH_DATAROW_POSITION+1, new Vector4( ControlIn.x, ControlIn.y*FlipMult, ControlOut.x, ControlOut.y*FlipMult ) );
 						PathPathDatas.Add(PathData);
 					}
 				}

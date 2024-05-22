@@ -106,20 +106,22 @@ namespace PopLottie
 	{
 		public struct BezierPoint
 		{
+			//	our mapping is for Painter2D which follows around
+			//	so first entry is just [Start] of 2nd node
 			public Vector2	ControlPointIn;
 			public Vector2	ControlPointOut;
-			public Vector2	Position;
+			public Vector2	End;
 			
 			public BezierPoint(Vector2 position)
 			{
-				this.Position = position;
+				this.End = position;
 				this.ControlPointIn = position;
 				this.ControlPointOut = position;
 			}
 			
-			public BezierPoint(Vector2 Position,Vector2 ControlPointIn,Vector2 ControlPointOut)
+			public BezierPoint(Vector2 End,Vector2 ControlPointIn,Vector2 ControlPointOut)
 			{
-				this.Position = Position;
+				this.End = End;
 				this.ControlPointIn = ControlPointIn;
 				this.ControlPointOut = ControlPointOut;
 			}
@@ -203,7 +205,7 @@ namespace PopLottie
 					//	https://nacho4d-nacho4d.blogspot.com/2011/05/bezier-paths-rounded-corners-rectangles.html
 					//	magic number is lerp( Pos -> Corner, 0.55)
 					var a = new BezierPoint( Start, ControlPointIn: Start, ControlPointOut: Corner );
-					var b = new BezierPoint( Position:End, ControlPointIn: Corner, ControlPointOut: End );
+					var b = new BezierPoint( End:End, ControlPointIn: Corner, ControlPointOut: End );
 					return new BezierPoint[]{a,b};
 				}
 				
@@ -252,11 +254,11 @@ namespace PopLottie
 				
 				if ( BezierPath?.Length > 0 )
 				{
-					Painter.MoveTo(BezierPath[0].Position);
+					Painter.MoveTo(BezierPath[0].End);
 					for ( var p=1;	p<BezierPath.Length;	p++ )
 					{
 						var Point = BezierPath[p];
-						Painter.BezierCurveTo( Point.ControlPointIn, Point.ControlPointOut, Point.Position ); 
+						Painter.BezierCurveTo( Point.ControlPointIn, Point.ControlPointOut, Point.End ); 
 					}
 				}
 				
@@ -283,9 +285,9 @@ namespace PopLottie
 				{
 					foreach (var Point in BezierPath)
 					{
-						EnumDebugPoint( new DebugPoint(Point.Position,0,Color.red,Point.ControlPointIn) );
-						EnumDebugPoint( new DebugPoint(Point.Position,1,Color.green) );
-						EnumDebugPoint( new DebugPoint(Point.Position,2,Color.cyan,Point.ControlPointOut) );
+						EnumDebugPoint( new DebugPoint(Point.End,0,Color.red,Point.ControlPointIn) );
+						EnumDebugPoint( new DebugPoint(Point.End,1,Color.green) );
+						EnumDebugPoint( new DebugPoint(Point.End,2,Color.cyan,Point.ControlPointOut) );
 					}
 				}
 				else if ( LinearPath?.Length > 0 )
@@ -330,8 +332,8 @@ namespace PopLottie
 					foreach (var Point in BezierPath)
 					{
 						float Padding = 2.0f;
-						Accumulate( Point.Position.x-Padding, Point.Position.y-Padding );
-						Accumulate( Point.Position.x+Padding, Point.Position.y+Padding );
+						Accumulate( Point.End.x-Padding, Point.End.y-Padding );
+						Accumulate( Point.End.x+Padding, Point.End.y+Padding );
 						Accumulate( Point.ControlPointIn.x-Padding, Point.ControlPointIn.y-Padding );
 						Accumulate( Point.ControlPointIn.x+Padding, Point.ControlPointIn.y+Padding );
 						Accumulate( Point.ControlPointOut.x-Padding, Point.ControlPointOut.y-Padding );
