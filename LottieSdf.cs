@@ -142,16 +142,16 @@ public class LottieSdf : MonoBehaviour
 		var PathDatas = new List<Matrix4x4>();
 		var FlipMult = Flip ? -1 : 1;
 		
-		void AddQuad(Rect? bounds,int PathIndex,int z,Color? FillColourMaybe,Color? StrokeColourMaybe,float StrokeWidth)
+		void AddQuad(Rect? bounds,int PathIndex,int PathCount,int z,Color? FillColourMaybe,Color? StrokeColourMaybe,float StrokeWidth)
 		{
 			if ( bounds == null )
 				return;
 			var rect = bounds.Value;
 			
-			var ClearColour = new Color(1,0,1,0.5f);
+			var ClearColour = new Color(1,0,1,0.0f);
 			var FillColour = FillColourMaybe ?? ClearColour;
 			var StrokeColour = StrokeColourMaybe ?? ClearColour;
-			var PathMeta = new Vector4( PathIndex, StrokeWidth, 0, 0 );
+			var PathMeta = new Vector4( StrokeWidth, PathIndex, PathCount, 0 );
 			
 			var VertexIndex = LocalPositions.Count;
 			float zf = z * ZSpacing;
@@ -233,15 +233,17 @@ public class LottieSdf : MonoBehaviour
 					PathPathDatas.Add(PathData);
 				}
 				
+				var PathIndex = PathDatas.Count;
 				foreach ( var SubPathData in PathPathDatas )
 				{
-					var PathIndex = PathDatas.Count;
 					PathDatas.Add(SubPathData);
-			
-					AddQuad( Path.Bounds, PathIndex, z, Fill, Stroke, StrokeWidth??0 );
 				}
+				AddQuad( Path.Bounds, PathIndex, PathDatas.Count-PathIndex, z, Fill, Stroke, StrokeWidth??0 );
 				z++;
+				
+				//break;
 			}
+			break;
 		}
 		
 		var Mesh = new Mesh();

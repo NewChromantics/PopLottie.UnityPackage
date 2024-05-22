@@ -4,6 +4,8 @@ Shader "PopLottie/LottieSdfPath"
 	{
 		Debug_StrokeScale ("Debug_StrokeScale", Range(1.0, 20.0)) = 1.0
 		Debug_ForceStrokeMin ("Debug_ForceStrokeMin", Range(0.0, 1.0)) = 0.0
+		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
+		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
 
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
 	}
@@ -39,18 +41,23 @@ Shader "PopLottie/LottieSdfPath"
 				float4 StrokeColour : TEXCOORD2;
 				float StrokeWidth : TEXCOORD3;
 				int PathDataIndex : TEXCOORD4;
+				int PathDataCount : TEXCOORD5;
 			};
 
 			#define ENABLE_DEBUG_INVISIBLE	false
 			#define OUTSIDE_COLOUR			(ENABLE_DEBUG_INVISIBLE ? float4(0,1,1,0.1) : float4(0,0,0,0) )
 			#define NULL_PATH_COLOUR		(ENABLE_DEBUG_INVISIBLE ? float4(1,0,0,0.1) : float4(0,0,0,0) )
 #define NULL_DISTANCE	999
-#define DEBUG_CONTROLPOINT_SIZE	0.01
-#define DEBUG_BEZIER_CONTROLPOINTS true
+#define DEBUG_CONTROLPOINT_SIZE	0.06
+#define DEBUG_BEZIER_CONTROLPOINTS false
+#define DEBUG_BEZIER_EDGES false
 
 			float Debug_StrokeScale;
 			float Debug_ForceStrokeMin;
+			float Debug_AddStrokeAlpha;
 			float Debug_BezierDistanceOffset;
+float Debug_DistanceRepeats;
+#define DEBUG_DISTANCE	(Debug_DistanceRepeats >= 1.0)
 
 			//	todo: how to represent bezier paths...
 			#define PATH_DATA_COUNT			300
@@ -73,8 +80,11 @@ Shader "PopLottie/LottieSdfPath"
 				o.LocalPosition = v.LocalPosition;
 				o.FillColour = v.FillColour;
 				o.StrokeColour = v.StrokeColour;
-				o.PathDataIndex = v.PathMeta.x;
-				o.StrokeWidth = Debug_ForceStrokeMin + (v.PathMeta.y * Debug_StrokeScale);
+				o.StrokeColour.w += Debug_AddStrokeAlpha;
+				o.StrokeWidth = v.PathMeta.x;
+				o.PathDataIndex = v.PathMeta.y;
+				o.PathDataCount = v.PathMeta.z;
+				o.StrokeWidth = Debug_ForceStrokeMin + (o.StrokeWidth * Debug_StrokeScale);
 				return o;
 			}
 	
@@ -182,8 +192,64 @@ Shader "PopLottie/LottieSdfPath"
 				return min(Distance1,Distance2);
 			}
 
+			float2 GetBezierPoint(float2 a,float2 b,float2 c,float2 d,float t)
+			{
+				float2 ab = lerp( a, b, t );
+				float2 bc = lerp( b, c, t );
+				float2 cd = lerp( c, d, t );
+				float2 ab_bc = lerp( ab, bc, t );
+				float2 bc_cd = lerp( bc, cd, t );
+				float2 abbc_bccd = lerp( ab_bc, bc_cd, t );
+				return abbc_bccd;
+			}
 
-			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			//	brute force method to test GetBezierPoint() is correct and to test against
+			float DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d)
+			{
+				//	visualise bezier steps to make sure math above is right
+				float Distance = NULL_DISTANCE;
+				int Steps = 30;
+				float2 PrevPos = GetBezierPoint( a, b, c, d, 0.0 );
+				for ( int i=1;	i<Steps;	i++ )
+				{
+					float t = float(i) / float(Steps-1);
+					float2 NextPos = GetBezierPoint( a, b, c, d, t );
+					//float Distancet = distance( Position, Pointt );
+					float2 PrevToNextDistance = DistanceToLine2( Position, PrevPos, NextPos );
+					Distance = min( Distance, PrevToNextDistance );
+					PrevPos = NextPos;
+				}
+				return Distance;
+					
+				/*
+				//	get the time along ab bc and cd as 3 initial times
+				//	then we do the same for abbc and bccd
+				float2 abnear = NearestToLine2( Position, a, b );
+				float2 bcnear = NearestToLine2( Position, b, c );
+				float2 cdnear = NearestToLine2( Position, c, d );
+				float abt = TimeAlongLine2( Position, a, b );
+				float bct = TimeAlongLine2( Position, b, c );
+				float cdt = TimeAlongLine2( Position, c, d );
+				float t1 = abt;
+				float t2 = bct;
+				float t3 = cdt;
+				float2 abbc_1 = lerp( a, b, t1 ); 
+				float2 abbc_2 = lerp( a, b, t2 ); 
+				float2 abbc_3 = lerp( a, b, t3 ); 
+				float2 bccd_1 = lerp( c, d, t1 ); 
+				float2 bccd_2 = lerp( c, b, t2 ); 
+				float2 bccd_3 = lerp( c, d, t3 ); 
+
+				float abdist = distance(Position,abnear);
+				float bcdist = distance(Position,bcnear);
+				float cddist = distance(Position,cdnear);
+
+				return min( abdist, min( bcdist, cddist ) );
+				*/
+			}
+
+
+			float DistanceToCubicMix(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
 				float abc = DistanceToQuadratic( Position, Start, ControlPointIn, ControlPointOut );
 				//float bcd = DistanceToQuadratic( Position, ControlPointIn, ControlPointOut, End );
@@ -194,26 +260,33 @@ Shader "PopLottie/LottieSdfPath"
 				return abd;
 			}
 
+			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			{
+				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End )
+						- Debug_BezierDistanceOffset;
+			}
 
 
 			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
 				float Distance = NULL_DISTANCE;
+				float ControlPointDistance = NULL_DISTANCE;
+				
 				//	debug, draw control points
 				if ( DEBUG_BEZIER_CONTROLPOINTS )
 				{
 					float2 Rad = float2(DEBUG_CONTROLPOINT_SIZE,DEBUG_CONTROLPOINT_SIZE);
-					Distance = min( Distance, DistanceToEllipse( Position, Start, Rad ) );
-					Distance = min( Distance, DistanceToEllipse( Position, ControlPointIn, Rad*0.5f ) );
-					Distance = min( Distance, DistanceToEllipse( Position, ControlPointOut, Rad*0.5f ) );
-					Distance = min( Distance, DistanceToEllipse( Position, End, Rad ) );
+					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, Start, Rad ) );
+					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, ControlPointIn, Rad*0.5f ) );
+					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, ControlPointOut, Rad*0.5f ) );
+					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
 				float BezierDistance = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End);
 				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
 				//float BezierDistance = DistanceToLine2(Position,Start,End);
 
-float EdgeDistance = NULL_DISTANCE;
+				float EdgeDistance = NULL_DISTANCE;
 				float ab = DistanceToLine2(Position,Start,ControlPointIn);
 				float bc = DistanceToLine2(Position,ControlPointIn,ControlPointOut);
 				float cd = DistanceToLine2(Position,ControlPointOut,End);
@@ -223,25 +296,27 @@ float EdgeDistance = NULL_DISTANCE;
 				EdgeDistance = min(EdgeDistance,bc);
 				EdgeDistance = min(EdgeDistance,cd);
 
-				/*
+				
 				//	work out which side we're on...
 				float2 lineDir = End - Start;
-				float2 perpDir = float2(lineDir.y, -lineDir.x);
-				float2 dirToPt1 = Start - Position;
+				float2 perpDir = normalize( float2(lineDir.y, -lineDir.x) );
+				float2 dirToPt1 = normalize( Start - Position);
 				bool Right = dot(perpDir, dirToPt1) < 0.0f;
 				if ( Right )
 				{
-					BezierDistance-= 0.01f;
+					//BezierDistance -= Debug_BezierDistanceOffset;
 				}
 				else
 				{
-					BezierDistance+= 9.6f;
+					//BezierDistance += Debug_BezierDistanceOffset;
 				}
-					*/
+					
 
 				//float sgn = cubic_bezier_sign(uv,p0,p1,p2,p3);
-				//Distance = min( Distance, BezierDistance );
-				Distance = min( Distance, EdgeDistance );
+				Distance = min( Distance, BezierDistance );
+				if ( DEBUG_BEZIER_EDGES )
+					Distance = min( Distance, EdgeDistance );
+				Distance = min( Distance, ControlPointDistance );
 				return Distance;
 			}
 
@@ -274,10 +349,15 @@ float EdgeDistance = NULL_DISTANCE;
 				return DistanceToPath(Position,PathData,PathDataType);
 			}
 
-			fixed4 frag (v2f i) : SV_Target
+			fixed4 frag (v2f Input) : SV_Target
 			{
 				int PathDataType = PATH_DATATYPE_UNINITIALISED;
-				float Distance = DistanceToPath(i.LocalPosition,i.PathDataIndex,PathDataType);
+				float Distance = NULL_DISTANCE;
+				for ( int i=Input.PathDataIndex;	i<Input.PathDataIndex+Input.PathDataCount;	i++ )
+				{
+					float PathDistance = DistanceToPath( Input.LocalPosition, i, PathDataType );
+					Distance = min( PathDistance, Distance );
+				}
 
 				if ( PathDataType == PATH_DATATYPE_NULL )
 				{
@@ -287,17 +367,31 @@ float EdgeDistance = NULL_DISTANCE;
 
 				//	whilst we have layers, we should do alpha blending instead of clipping
 				//	really we need to do that anyway
-				float HalfStrokeWidth = i.StrokeWidth / 2.0f;
+				float HalfStrokeWidth = Input.StrokeWidth / 2.0f;
 				//	todo: antialias/blend edges
+				
 				//	outside path
 				if ( Distance > HalfStrokeWidth )
+				{
+					//	draw distance
+					if ( DEBUG_DISTANCE )
+					{
+						float RepeatStep = 1.0f / Debug_DistanceRepeats;
+						float DistanceNorm = (Distance % RepeatStep ) / RepeatStep;
+						float DistanceAlpha = 0.1;
+						float4 Near = float4(1,1,1,DistanceAlpha);
+						float4 Far = float4(0,0,0,DistanceAlpha);
+						return lerp( Near, Far, DistanceNorm );
+					}
 					return OUTSIDE_COLOUR;
+				}	
+
 				//	within stroke
 				if ( Distance > -HalfStrokeWidth )
-					return i.StrokeColour;
+					return Input.StrokeColour;
 
 				//	within fill (typically negative number)
-				//return i.FillColour;
+				return Input.FillColour;
 				float DistanceT = (-Distance ) / 0.3f;
 				float4 Red = float4(1,0,0,1);
 				float4 Green = float4(0,0,1,1);
