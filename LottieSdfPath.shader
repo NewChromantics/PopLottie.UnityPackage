@@ -2,7 +2,10 @@ Shader "PopLottie/LottieSdfPath"
 {
 	Properties
 	{
-		Debug_StrokeScale ("Debug_StrokeScale", Range(1.0, 50.0)) = 1.0
+		Debug_StrokeScale ("Debug_StrokeScale", Range(1.0, 20.0)) = 1.0
+		Debug_ForceStrokeMin ("Debug_ForceStrokeMin", Range(0.0, 1.0)) = 0.0
+
+		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
 	}
 	SubShader
 	{
@@ -43,9 +46,11 @@ Shader "PopLottie/LottieSdfPath"
 			#define NULL_PATH_COLOUR		(ENABLE_DEBUG_INVISIBLE ? float4(1,0,0,0.1) : float4(0,0,0,0) )
 #define NULL_DISTANCE	999
 #define DEBUG_CONTROLPOINT_SIZE	0.01
-#define DEBUG_BEZIER_CONTROLPOINTS false
+#define DEBUG_BEZIER_CONTROLPOINTS true
 
 			float Debug_StrokeScale;
+			float Debug_ForceStrokeMin;
+			float Debug_BezierDistanceOffset;
 
 			//	todo: how to represent bezier paths...
 			#define PATH_DATA_COUNT			300
@@ -69,7 +74,7 @@ Shader "PopLottie/LottieSdfPath"
 				o.FillColour = v.FillColour;
 				o.StrokeColour = v.StrokeColour;
 				o.PathDataIndex = v.PathMeta.x;
-				o.StrokeWidth = v.PathMeta.y * Debug_StrokeScale;
+				o.StrokeWidth = Debug_ForceStrokeMin + (v.PathMeta.y * Debug_StrokeScale);
 				return o;
 			}
 	
@@ -82,18 +87,18 @@ Shader "PopLottie/LottieSdfPath"
 
 
 			//	https://www.shadertoy.com/view/4sKyzW
-			#include "SignedDistanceCubicBezier.cginc"
+			//#include "SignedDistanceCubicBezier.cginc"
 
-			float TimeAlongLine2(vec2 Position,vec2 Start,vec2 End)
+			float TimeAlongLine2(float2 Position,float2 Start,float2 End)
 			{
-				vec2 Direction = End - Start;
+				float2 Direction = End - Start;
 				float DirectionLength = length(Direction);
 				float Projection = dot( Position - Start, Direction) / (DirectionLength*DirectionLength);
 				
 				return Projection;
 			}
 
-			vec2 NearestToLine2(vec2 Position,vec2 Start,vec2 End)
+			float2 NearestToLine2(float2 Position,float2 Start,float2 End)
 			{
 				float Projection = TimeAlongLine2( Position, Start, End );
 				
@@ -109,11 +114,86 @@ Shader "PopLottie/LottieSdfPath"
 			}
 
 			//	https://github.com/NewChromantics/PopCave/blob/be8766dd03eb46430bf4f8a906db86ed1973a360/PopCave/DrawLines.frag.glsl#L59
-			float DistanceToLine2(vec2 Position,vec2 Start,vec2 End)
+			float DistanceToLine2(float2 Position,float2 Start,float2 End)
 			{
-				vec2 Near = NearestToLine2( Position, Start, End );
+				float2 Near = NearestToLine2( Position, Start, End );
 				return length( Near - Position );
 			}
+
+			float DistanceToQuadratic(float2 Position,float2 Start,float2 ControlPoint,float2 End)
+			{
+				float MaxDistance = 10;	//	gr: remove this
+				float2 p0 = Position;
+				float2 p1 = Start;
+				float2 p2 = ControlPoint;
+				float2 p3 = End;
+				float bezier_curve_threshold = MaxDistance;
+				
+				//	gr: i believe this is the compacted version of lerp( a, lerp(b, lerp(c,d) ) )
+				float a = p3.x - 2 * p2.x + p1.x;
+				float b = 2 * (p2.x - p1.x);
+				float c = p1.x - p0.x;
+				float dx = b * b - 4.0f * a * c;
+				
+				//	derivitive on x
+				//	gr: little difference here I think because of our point clamping
+				if (dx < 0.0f)	return NULL_DISTANCE; 
+
+				//	time values
+				//	gr: this kinda feels like distance along line
+				float t1 = (-b + sqrt(dx)) / (2 * a);
+				float t2 = (-b - sqrt(dx)) / (2 * a);
+
+				//	between 0...1 to be on the curve edge
+				float TimeTolerance = 0;
+				float TimeMin = -TimeTolerance;
+				float TimeMax = 1+TimeTolerance;
+
+				//	recalc the position clamped so then below the distance will cap and we get proper round distances
+				//	may need to unclamp here to do different stroke ends?
+				float t1clamped = clamp(t1,TimeMin,TimeMax);
+				float t2clamped = clamp(t2,TimeMin,TimeMax);
+				float2 xy1 = p1 + 2 * t1clamped * (p2 - p1) + t1clamped * t1clamped * (p3 - 2 * p2 + p1);
+				float2 xy2 = p1 + 2 * t2clamped * (p2 - p1) + t2clamped * t2clamped * (p3 - 2 * p2 + p1);
+				//	get y for each time
+				float y1 = p1.y + 2 * t1 * (p2.y - p1.y) + t1 * t1 * (p3.y - 2 * p2.y + p1.y);
+				float y2 = p1.y + 2 * t2 * (p2.y - p1.y) + t2 * t2 * (p3.y - 2 * p2.y + p1.y);
+
+
+				bool ClampEnds = false;
+
+				float Distance1 = NULL_DISTANCE;
+				float Distance2 = NULL_DISTANCE;
+
+				if ( (t1>=TimeMin && t1<=TimeMax) || !ClampEnds )
+				{
+					Distance1 = abs(p0.y - y1);
+					Distance1 = distance(p0,xy1);
+					Distance1 -= Debug_BezierDistanceOffset;
+				}
+
+				if ( (t2>=TimeMin && t2<=TimeMax) || !ClampEnds )
+				{
+					Distance2 = abs(p0.y-y2);
+					Distance2 = distance(p0,xy2);
+					Distance2 -= Debug_BezierDistanceOffset;
+				}
+
+				return min(Distance1,Distance2);
+			}
+
+
+			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			{
+				float abc = DistanceToQuadratic( Position, Start, ControlPointIn, ControlPointOut );
+				//float bcd = DistanceToQuadratic( Position, ControlPointIn, ControlPointOut, End );
+				//return bcd;
+				//return min( abc, bcd );
+				float abd = DistanceToQuadratic( Position, Start, ControlPointIn, End );
+				return abc;
+				return abd;
+			}
+
 
 
 			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
@@ -129,13 +209,25 @@ Shader "PopLottie/LottieSdfPath"
 					Distance = min( Distance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
+				float BezierDistance = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End);
 				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
-				float BezierDistance = DistanceToLine2(Position,Start,End);
-				
+				//float BezierDistance = DistanceToLine2(Position,Start,End);
+
+float EdgeDistance = NULL_DISTANCE;
+				float ab = DistanceToLine2(Position,Start,ControlPointIn);
+				float bc = DistanceToLine2(Position,ControlPointIn,ControlPointOut);
+				float cd = DistanceToLine2(Position,ControlPointOut,End);
+
+
+				EdgeDistance = min(EdgeDistance,ab);
+				EdgeDistance = min(EdgeDistance,bc);
+				EdgeDistance = min(EdgeDistance,cd);
+
+				/*
 				//	work out which side we're on...
-				vec2 lineDir = End - Start;
-				vec2 perpDir = vec2(lineDir.y, -lineDir.x);
-				vec2 dirToPt1 = Start - Position;
+				float2 lineDir = End - Start;
+				float2 perpDir = float2(lineDir.y, -lineDir.x);
+				float2 dirToPt1 = Start - Position;
 				bool Right = dot(perpDir, dirToPt1) < 0.0f;
 				if ( Right )
 				{
@@ -145,10 +237,11 @@ Shader "PopLottie/LottieSdfPath"
 				{
 					BezierDistance+= 9.6f;
 				}
-					
+					*/
 
 				//float sgn = cubic_bezier_sign(uv,p0,p1,p2,p3);
-				Distance = min( Distance, BezierDistance );
+				//Distance = min( Distance, BezierDistance );
+				Distance = min( Distance, EdgeDistance );
 				return Distance;
 			}
 
@@ -168,6 +261,7 @@ Shader "PopLottie/LottieSdfPath"
 					float2 End = PathData[PATH_DATAROW_POSITION].zw;
 					float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
 					float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
+
 					return DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End );
 				}
 
@@ -188,7 +282,7 @@ Shader "PopLottie/LottieSdfPath"
 				if ( PathDataType == PATH_DATATYPE_NULL )
 				{
 					Distance = -1;	//	fill the quad
-					//return NULL_PATH_COLOUR;
+					return NULL_PATH_COLOUR;
 				}
 
 				//	whilst we have layers, we should do alpha blending instead of clipping
@@ -203,7 +297,11 @@ Shader "PopLottie/LottieSdfPath"
 					return i.StrokeColour;
 
 				//	within fill (typically negative number)
-				return i.FillColour;
+				//return i.FillColour;
+				float DistanceT = (-Distance ) / 0.3f;
+				float4 Red = float4(1,0,0,1);
+				float4 Green = float4(0,0,1,1);
+				return lerp( Red, Green, DistanceT );
 			}
 			ENDCG
 		}

@@ -25,6 +25,8 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - Debug_BezierDistanceOffset: 0.04
+    - Debug_ForceStrokeMin: 0
     - Debug_StrokeScale: 1
     m_Colors: []
   m_BuildTextureStacks: []
