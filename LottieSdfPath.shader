@@ -139,7 +139,7 @@ float Debug_DistanceRepeats;
 				float2 p3 = End;
 				float bezier_curve_threshold = MaxDistance;
 				
-				//	gr: i believe this is the compacted version of lerp( a, lerp(b, lerp(c,d) ) )
+				//	gr: i believe this is the compacted version of lerp( a, lerp(b, c) ) )
 				float a = p3.x - 2 * p2.x + p1.x;
 				float b = 2 * (p2.x - p1.x);
 				float c = p1.x - p0.x;
@@ -203,13 +203,30 @@ float Debug_DistanceRepeats;
 				return abbc_bccd;
 			}
 
+float angle(float2 p) {
+    return atan2(p.y, p.x);
+}
+#define PI UNITY_PI
+
+float angle(float2 p0, float2 p1) 
+{
+    float a =  angle(p1) - angle(p0);
+    a = (a-PI) % (2.*PI);
+	a-=PI;
+    
+    return a;
+}
+
 			//	brute force method to test GetBezierPoint() is correct and to test against
-			float DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d)
+			float DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d/*,inout float WindingCount*/)
 			{
 				//	visualise bezier steps to make sure math above is right
 				float Distance = NULL_DISTANCE;
 				int Steps = 30;
 				float2 PrevPos = GetBezierPoint( a, b, c, d, 0.0 );
+
+				//WindingCount+=0;
+
 				for ( int i=1;	i<Steps;	i++ )
 				{
 					float t = float(i) / float(Steps-1);
@@ -217,35 +234,13 @@ float Debug_DistanceRepeats;
 					//float Distancet = distance( Position, Pointt );
 					float2 PrevToNextDistance = DistanceToLine2( Position, PrevPos, NextPos );
 					Distance = min( Distance, PrevToNextDistance );
+
+					//WindingCount += angle( PrevPos-Position, NextPos-Position );
+					
 					PrevPos = NextPos;
 				}
+
 				return Distance;
-					
-				/*
-				//	get the time along ab bc and cd as 3 initial times
-				//	then we do the same for abbc and bccd
-				float2 abnear = NearestToLine2( Position, a, b );
-				float2 bcnear = NearestToLine2( Position, b, c );
-				float2 cdnear = NearestToLine2( Position, c, d );
-				float abt = TimeAlongLine2( Position, a, b );
-				float bct = TimeAlongLine2( Position, b, c );
-				float cdt = TimeAlongLine2( Position, c, d );
-				float t1 = abt;
-				float t2 = bct;
-				float t3 = cdt;
-				float2 abbc_1 = lerp( a, b, t1 ); 
-				float2 abbc_2 = lerp( a, b, t2 ); 
-				float2 abbc_3 = lerp( a, b, t3 ); 
-				float2 bccd_1 = lerp( c, d, t1 ); 
-				float2 bccd_2 = lerp( c, b, t2 ); 
-				float2 bccd_3 = lerp( c, d, t3 ); 
-
-				float abdist = distance(Position,abnear);
-				float bcdist = distance(Position,bcnear);
-				float cddist = distance(Position,cdnear);
-
-				return min( abdist, min( bcdist, cddist ) );
-				*/
 			}
 
 
@@ -260,14 +255,61 @@ float Debug_DistanceRepeats;
 				return abd;
 			}
 
-			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End/*,inout float WindingCount*/)
 			{
-				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End )
-						- Debug_BezierDistanceOffset;
+				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End/*, WindingCount */)
+				//		- Debug_BezierDistanceOffset
+				;
+			}
+
+			//	https://www.shadertoy.com/view/4sKyzW
+			float GetCubicBezierSign(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			{
+				float2 p0 = Start;
+				float2 p1 = ControlPointIn;
+				float2 p2 = ControlPointOut;
+				float2 p3 = End;
+				float2 uv = Position;
+
+				float2 tang1 = p0.xy - p1.xy;
+				float2 tang2 = p2.xy - p3.xy;
+
+				float2 nor1 = float2(tang1.y,-tang1.x);
+				float2 nor2 = float2(tang2.y,-tang2.x);
+				int n_ints = 0;	//	intersections
+
+				if(p0.y < p1.y){
+					if((uv.y<=p0.y) && (dot(uv-p0.xy,nor1)<0.)){
+						n_ints++;
+					}
+				}
+				else{
+					if(!(uv.y<=p0.y) && !(dot(uv-p0.xy,nor1)<0.)){
+						n_ints++;
+					}
+				}
+
+				if(p2.y<p3.y){
+					if(!(uv.y<=p3.y) && dot(uv-p3.xy,nor2)<0.){
+						n_ints++;
+					}
+				}
+				else{
+					if((uv.y<=p3.y) && !(dot(uv-p3.xy,nor2)<0.)){
+						n_ints++;
+					}
+				}
+
+				if(n_ints==0 || n_ints==2 || n_ints==4){
+					return 1.;
+				}
+				else{
+					return -1.;
+				}
 			}
 
 
-			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End/*,inout float WindingCount*/)
 			{
 				float Distance = NULL_DISTANCE;
 				float ControlPointDistance = NULL_DISTANCE;
@@ -282,7 +324,7 @@ float Debug_DistanceRepeats;
 					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
-				float BezierDistance = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End);
+				float BezierDistance = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End/*, WindingCount*/);
 				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
 				//float BezierDistance = DistanceToLine2(Position,Start,End);
 
@@ -296,7 +338,9 @@ float Debug_DistanceRepeats;
 				EdgeDistance = min(EdgeDistance,bc);
 				EdgeDistance = min(EdgeDistance,cd);
 
-				
+
+				//float Sign = GetCubicBezierSign(Position,Start,ControlPointIn,ControlPointOut,End);
+/*
 				//	work out which side we're on...
 				float2 lineDir = End - Start;
 				float2 perpDir = normalize( float2(lineDir.y, -lineDir.x) );
@@ -304,13 +348,14 @@ float Debug_DistanceRepeats;
 				bool Right = dot(perpDir, dirToPt1) < 0.0f;
 				if ( Right )
 				{
-					//BezierDistance -= Debug_BezierDistanceOffset;
+					BezierDistance -= Debug_BezierDistanceOffset;
 				}
 				else
 				{
 					//BezierDistance += Debug_BezierDistanceOffset;
 				}
-					
+					*/
+				//BezierDistance *= Sign;
 
 				//float sgn = cubic_bezier_sign(uv,p0,p1,p2,p3);
 				Distance = min( Distance, BezierDistance );
@@ -321,7 +366,7 @@ float Debug_DistanceRepeats;
 			}
 
 
-			float DistanceToPath(float2 Position,float4x4 PathData,out int PathDataType)
+			float DistanceToPath(float2 Position,float4x4 PathData,out int PathDataType/*,inout float WindingCount*/)
 			{
 				PathDataType = PathData[PATH_DATAROW_META].x;
 				if ( PathDataType == PATH_DATATYPE_ELLIPSE )
@@ -337,7 +382,7 @@ float Debug_DistanceRepeats;
 					float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
 					float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
 
-					return DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End );
+					return DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End/*, WindingCount */);
 				}
 
 				return NULL_DISTANCE;
@@ -353,9 +398,10 @@ float Debug_DistanceRepeats;
 			{
 				int PathDataType = PATH_DATATYPE_UNINITIALISED;
 				float Distance = NULL_DISTANCE;
+				float WindingCount = 0;
 				for ( int i=Input.PathDataIndex;	i<Input.PathDataIndex+Input.PathDataCount;	i++ )
 				{
-					float PathDistance = DistanceToPath( Input.LocalPosition, i, PathDataType );
+					float PathDistance = DistanceToPath( Input.LocalPosition, i, PathDataType/*, WindingCount */);
 					Distance = min( PathDistance, Distance );
 				}
 
