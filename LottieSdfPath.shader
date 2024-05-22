@@ -377,10 +377,15 @@ float Debug_DistanceRepeats;
 					if ( DEBUG_DISTANCE )
 					{
 						float RepeatStep = 1.0f / Debug_DistanceRepeats;
-						float DistanceNorm = (Distance % RepeatStep ) / RepeatStep;
-						float DistanceAlpha = 0.1;
+						float DistanceNorm = (abs(Distance) % RepeatStep ) / RepeatStep;
+						float DistanceAlpha = 0.2;
 						float4 Near = float4(1,1,1,DistanceAlpha);
 						float4 Far = float4(0,0,0,DistanceAlpha);
+						if ( Distance < 0 )
+						{
+							Near.xyz = float3(1,0,0);
+							Far.xyz = float3(1,0,0);
+						}
 						return lerp( Near, Far, DistanceNorm );
 					}
 					return OUTSIDE_COLOUR;
