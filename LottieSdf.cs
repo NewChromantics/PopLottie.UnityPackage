@@ -243,7 +243,7 @@ public class LottieSdf : MonoBehaviour
 				
 				//break;
 			}
-			break;
+			//break;
 		}
 		
 		var Mesh = new Mesh();

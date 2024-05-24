@@ -6,8 +6,9 @@ Shader "PopLottie/LottieSdfPath"
 		Debug_ForceStrokeMin ("Debug_ForceStrokeMin", Range(0.0, 1.0)) = 0.0
 		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
 		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
-
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
+		
+		WindingMax("WindingMax", Range(0.0, 900)) = 360.0
 	}
 	SubShader
 	{
@@ -69,9 +70,14 @@ float Debug_DistanceRepeats;
 			#define PATH_DATAROW_POSITION	1
 
 
+			float WindingMax;
 			uniform float4x4 PathDatas[PATH_DATA_COUNT];
 
-
+			struct DistanceAndWinding_t
+			{
+				float Distance;
+				float WindingAngle;
+			};
 
 			v2f vert (appdata v)
 			{
@@ -206,6 +212,20 @@ float Debug_DistanceRepeats;
 float angle(float2 p) {
     return atan2(p.y, p.x);
 }
+	float AngleDegreesOfVector(float2 v)
+	{
+		v = normalize(v);
+		//	-PI...PI
+		float Rad = atan2( v.y, v.x );
+		//	to 0..2pi (circle)
+		//if ( Rad < 0 )
+		//	Rad += 2 * UNITY_PI;
+		float Norm = Rad / (UNITY_PI*2.0f);
+		float Deg = Norm * 360.f;
+		return Deg;
+	}
+
+
 #define PI UNITY_PI
 
 float angle(float2 p0, float2 p1) 
@@ -216,16 +236,31 @@ float angle(float2 p0, float2 p1)
     
     return a;
 }
+	#define EPSILON	0.001f
+			//	what is the arc from a to b in angles
+			float DegreesBetweenPoints(float2 a,float2 b,float2 Pivot)
+			{
+				//	if we're right on a point (ie, an edge) we want to avoid NaNs
+				//	but I dont think we can calculate the angle...?
+				if ( distance(a,Pivot) < EPSILON )	return 0;
+				if ( distance(b,Pivot) < EPSILON )	return 0;
+
+				float angletoa = AngleDegreesOfVector( a - Pivot );
+				float angletob = AngleDegreesOfVector( b - Pivot );
+				return angletob - angletoa;
+			}
 
 			//	brute force method to test GetBezierPoint() is correct and to test against
-			float DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d/*,inout float WindingCount*/)
+			DistanceAndWinding_t DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d/*,inout float WindingCount*/)
 			{
 				//	visualise bezier steps to make sure math above is right
 				float Distance = NULL_DISTANCE;
-				int Steps = 30;
-				float2 PrevPos = GetBezierPoint( a, b, c, d, 0.0 );
+//	gr: more steps 
+				int Steps = 10;
+				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
+				float2 PrevPos = FirstPos;
 
-				//WindingCount+=0;
+				float WindingAngle = 0;
 
 				for ( int i=1;	i<Steps;	i++ )
 				{
@@ -235,12 +270,21 @@ float angle(float2 p0, float2 p1)
 					float2 PrevToNextDistance = DistanceToLine2( Position, PrevPos, NextPos );
 					Distance = min( Distance, PrevToNextDistance );
 
-					//WindingCount += angle( PrevPos-Position, NextPos-Position );
+					//if ( i < 3 )
+					WindingAngle += DegreesBetweenPoints( PrevPos, NextPos, Position );
 					
 					PrevPos = NextPos;
 				}
+	
+				//	gr: also need to include path closure for winding
+				{
+					//WindingAngle += DegreesBetweenPoints( PrevPos, FirstPos, Position );
+				}
 
-				return Distance;
+				DistanceAndWinding_t DistanceAndWinding;
+				DistanceAndWinding.Distance = Distance;
+				DistanceAndWinding.WindingAngle = WindingAngle;
+				return DistanceAndWinding;
 			}
 
 
@@ -255,9 +299,9 @@ float angle(float2 p0, float2 p1)
 				return abd;
 			}
 
-			float DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End/*,inout float WindingCount*/)
+			DistanceAndWinding_t DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
-				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End/*, WindingCount */)
+				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End)
 				//		- Debug_BezierDistanceOffset
 				;
 			}
@@ -308,8 +352,9 @@ float angle(float2 p0, float2 p1)
 				}
 			}
 
+			
 
-			float DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End/*,inout float WindingCount*/)
+			DistanceAndWinding_t DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
 				float Distance = NULL_DISTANCE;
 				float ControlPointDistance = NULL_DISTANCE;
@@ -324,7 +369,8 @@ float angle(float2 p0, float2 p1)
 					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
-				float BezierDistance = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End/*, WindingCount*/);
+				DistanceAndWinding_t BezierDistanceAndWinding = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End);
+				float BezierDistance = BezierDistanceAndWinding.Distance;
 				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
 				//float BezierDistance = DistanceToLine2(Position,Start,End);
 
@@ -362,48 +408,60 @@ float angle(float2 p0, float2 p1)
 				if ( DEBUG_BEZIER_EDGES )
 					Distance = min( Distance, EdgeDistance );
 				Distance = min( Distance, ControlPointDistance );
-				return Distance;
+
+				DistanceAndWinding_t DistanceAndWinding;
+				DistanceAndWinding.Distance = Distance;
+				DistanceAndWinding.WindingAngle = BezierDistanceAndWinding.WindingAngle;
+				return DistanceAndWinding;
 			}
 
 
-			float DistanceToPath(float2 Position,float4x4 PathData,out int PathDataType/*,inout float WindingCount*/)
+			float DistanceToPath(float2 Position,int PathDataIndex,int PathDataCount,out int PathDataType)
 			{
-				PathDataType = PathData[PATH_DATAROW_META].x;
+				float4x4 PathData0 = PathDatas[PathDataIndex];
+				PathDataType = PathData0[PATH_DATAROW_META].x;
+
 				if ( PathDataType == PATH_DATATYPE_ELLIPSE )
 				{
-					float2 EllipseCenter = PathData[PATH_DATAROW_POSITION].xy;
-					float EllipseRadius = PathData[PATH_DATAROW_POSITION].z;
+					float2 EllipseCenter = PathData0[PATH_DATAROW_POSITION].xy;
+					float EllipseRadius = PathData0[PATH_DATAROW_POSITION].z;
 					return DistanceToEllipse( Position, EllipseCenter, EllipseRadius );
 				}
+
+				//	multiple segments need to accumulate winding angle to determine if we're inside
+				//	gr: currently assuming all data is the same type... need to redo this data to handle mixed types with same styles
 				if ( PathDataType == PATH_DATATYPE_BEZIER )
 				{
-					float2 Start = PathData[PATH_DATAROW_POSITION].xy;
-					float2 End = PathData[PATH_DATAROW_POSITION].zw;
-					float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
-					float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
+					//	build up WindingAngle to determine if we've been ecompassed by a path (and therefore inside)
+					float WindingAngle = 0;
+					float MinDistance = NULL_DISTANCE;
+//PathDataCount = min(PathDataCount,2);
+					for ( int i=0;	i<PathDataCount;	i++ )
+					{
+						float4x4 PathData = PathDatas[PathDataIndex+i];
+						float2 Start = PathData[PATH_DATAROW_POSITION].xy;
+						float2 End = PathData[PATH_DATAROW_POSITION].zw;
+						float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
+						float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
+						DistanceAndWinding_t SegmentResult = DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End );
+						MinDistance = min( MinDistance, SegmentResult.Distance );
+						WindingAngle += SegmentResult.WindingAngle;
+					}
 
-					return DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End/*, WindingCount */);
+					//WindingAngle = abs(WindingAngle) % 360;
+					bool Inside = abs(WindingAngle) > WindingMax;
+					//bool Inside = WindingAngle < -WindingMax;
+
+					return Inside ? -MinDistance : MinDistance;
 				}
 
 				return NULL_DISTANCE;
 			}
 
-			float DistanceToPath(float2 Position,int PathIndex,out int PathDataType)
-			{
-				float4x4 PathData = PathDatas[PathIndex];
-				return DistanceToPath(Position,PathData,PathDataType);
-			}
-
 			fixed4 frag (v2f Input) : SV_Target
 			{
 				int PathDataType = PATH_DATATYPE_UNINITIALISED;
-				float Distance = NULL_DISTANCE;
-				float WindingCount = 0;
-				for ( int i=Input.PathDataIndex;	i<Input.PathDataIndex+Input.PathDataCount;	i++ )
-				{
-					float PathDistance = DistanceToPath( Input.LocalPosition, i, PathDataType/*, WindingCount */);
-					Distance = min( PathDistance, Distance );
-				}
+				float Distance = DistanceToPath( Input.LocalPosition, Input.PathDataIndex, Input.PathDataCount, PathDataType);
 
 				if ( PathDataType == PATH_DATATYPE_NULL )
 				{
