@@ -12,9 +12,9 @@ Shader "PopLottie/LottieSdfPath"
 	}
 	SubShader
 	{
-		Tags { "RenderType"="Transparent" }
+		Tags { "RenderType"="Transparent" "Queue"="Transparent" }
 		LOD 100
-		Cull off   
+		Cull off	//	double sided
 		Blend SrcAlpha OneMinusSrcAlpha
 
 		Pass
