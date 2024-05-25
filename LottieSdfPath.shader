@@ -9,6 +9,7 @@ Shader "PopLottie/LottieSdfPath"
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
 		AntialiasRadius("AntialiasRadius", Range(0,0.01) ) = 0.005
 		[IntRange]BezierArcSteps("BezierArcSteps", Range(2,50) ) = 10
+		[IntRange]RenderOnlyPath("RenderOnlyPath", Range(-1,20) ) = -1
 	}
 	SubShader
 	{
@@ -35,7 +36,8 @@ Shader "PopLottie/LottieSdfPath"
 				float2 QuadUv : TEXCOORD0;	//	not sure we need this, all shape info is gonna be in local space
 				float4 FillColour : COLOR;
 				float4 StrokeColour : TEXCOORD1;
-				float4 PathMeta : TEXCOORD2;
+				float4 StrokeWidth : TEXCOORD2;
+				float4 ShapeMeta : TEXCOORD3;
 			};
 
 			struct v2f
@@ -46,17 +48,16 @@ Shader "PopLottie/LottieSdfPath"
 				float4 FillColour : TEXCOORD2;
 				float4 StrokeColour : TEXCOORD3;
 				float StrokeWidth : TEXCOORD4;
-				int PathDataIndex : TEXCOORD5;
-				int PathDataCount : TEXCOORD6;
+				float4 ShapeMeta : TEXCOORD5;
 			};
 
 			#define ENABLE_DEBUG_INVISIBLE	false
-			#define OUTSIDE_COLOUR			(ENABLE_DEBUG_INVISIBLE ? float4(0,1,1,0.1) : float4(0,0,0,0) )
+			#define OUTSIDE_COLOUR			(ENABLE_DEBUG_INVISIBLE ? float4(0,1,0,0.1) : float4(0,0,0,0) )
 			#define NULL_PATH_COLOUR		(ENABLE_DEBUG_INVISIBLE ? float4(1,0,0,0.1) : float4(0,0,0,0) )
 #define NULL_DISTANCE	999
 #define DEBUG_CONTROLPOINT_SIZE	0.06
 #define DEBUG_BEZIER_CONTROLPOINTS false
-#define DEBUG_BEZIER_EDGES false
+#define DEBUG_BEZIER_EDGES true
 
 			float Debug_StrokeScale;
 			float Debug_ForceStrokeMin;
@@ -67,26 +68,57 @@ float Debug_DistanceRepeats;
 #define ENABLE_ANTIALIAS	true
 			float AntialiasRadius;
 			int BezierArcSteps;
+			int RenderOnlyPath;
 #define MIN_BEZIER_ARC_STEPS	3
 #define BEZIER_ARC_STEPS	max( BezierArcSteps, MIN_BEZIER_ARC_STEPS )
 
-			//	todo: how to represent bezier paths...
-			#define PATH_DATA_COUNT			300
-			#define PATH_DATATYPE_UNINITIALISED	-1
-			#define PATH_DATATYPE_NULL		0
-			#define PATH_DATATYPE_ELLIPSE	1
-			#define PATH_DATATYPE_BEZIER	2
-			#define PATH_DATAROW_META		0
-			#define PATH_DATAROW_POSITION	1
+			#define PATH_TYPE_NULL		0
+			#define PATH_TYPE_ELLIPSE	1
+			#define PATH_TYPE_BEZIER	2
 
 
-			uniform float4x4 PathDatas[PATH_DATA_COUNT];
+#define MAX_PATHMETAS		50
+#define MAX_PATHPOINTS		500	//	for beziers these are in batches of 3... start control control
+			uniform float4 PathMetas[MAX_PATHMETAS];
+			uniform float4 PathPoints[MAX_PATHPOINTS];
+			
+			struct ShapeMeta_t
+			{
+				int FirstPath;
+				int PathCount;
+			};
+
+			struct PathMeta_t
+			{
+				int PathType;
+				int FirstPoint;
+				int PointCount;
+			};
 
 			struct Distance_t
 			{
 				float Distance;
 				float Sign;
 			};
+
+			PathMeta_t GetPathMeta(int PathIndex)
+			{
+				PathMeta_t PathMeta;
+				float4 PathData = PathMetas[PathIndex];
+				PathMeta.PathType = PathData.x;
+				PathMeta.FirstPoint = PathData.y;
+				PathMeta.PointCount = PathData.z;
+				return PathMeta;
+			}
+
+			ShapeMeta_t GetShapeMeta(float4 ShapeMeta)
+			{
+				ShapeMeta_t meta;
+				meta.FirstPath = ShapeMeta.x;
+				meta.PathCount = ShapeMeta.y;
+				return meta;
+			}
+
 
 			v2f vert (appdata v)
 			{
@@ -96,9 +128,8 @@ float Debug_DistanceRepeats;
 				o.FillColour = v.FillColour;
 				o.StrokeColour = v.StrokeColour;
 				o.StrokeColour.w += Debug_AddStrokeAlpha;
-				o.StrokeWidth = v.PathMeta.x;
-				o.PathDataIndex = v.PathMeta.y;
-				o.PathDataCount = v.PathMeta.z;
+				o.StrokeWidth = v.StrokeWidth.x;
+				o.ShapeMeta = v.ShapeMeta.y;
 				o.StrokeWidth = Debug_ForceStrokeMin + (o.StrokeWidth * Debug_StrokeScale);
 
 				//	correct colours for antialias blending
@@ -116,6 +147,11 @@ float Debug_DistanceRepeats;
 				o.OutsideColour = OutsideColour;
 				o.FillColour = FillColour;
 				o.StrokeColour = StrokeColour;
+if ( DEBUG_BEZIER_EDGES /*&& ENABLE_ANTIALIAS */)
+{
+	o.StrokeColour = float4(1,0,1,1);
+	o.StrokeWidth = 0.01;
+}
 
 				return o;
 			}
@@ -524,7 +560,14 @@ float angle(float2 p0, float2 p1)
 				//float sgn = cubic_bezier_sign(uv,p0,p1,p2,p3);
 				Distance = min( Distance, BezierDistance );
 				if ( DEBUG_BEZIER_EDGES )
+				{
 					Distance = min( Distance, EdgeDistance );
+					Distance_t Result;
+					Result.Distance = EdgeDistance;
+					Result.Sign = 1;
+					return Result;
+				}
+
 				Distance = min( Distance, ControlPointDistance );
 
 				Distance_t DistanceAndWinding;
@@ -533,42 +576,69 @@ float angle(float2 p0, float2 p1)
 				return DistanceAndWinding;
 			}
 
-
-			float DistanceToPath(float2 Position,int PathDataIndex,int PathDataCount,out int PathDataType)
+			float DistanceToPath(float2 Position,PathMeta_t PathMeta)
 			{
-				float4x4 PathData0 = PathDatas[PathDataIndex];
-				PathDataType = PathData0[PATH_DATAROW_META].x;
-
-				if ( PathDataType == PATH_DATATYPE_ELLIPSE )
+				if ( PathMeta.PathType == PATH_TYPE_ELLIPSE )
 				{
-					float2 EllipseCenter = PathData0[PATH_DATAROW_POSITION].xy;
-					float EllipseRadius = PathData0[PATH_DATAROW_POSITION].z;
+					float2 EllipseCenter = PathPoints[PathMeta.FirstPoint+0].xy;
+					float EllipseRadius = PathPoints[PathMeta.FirstPoint+1].z;
 					return DistanceToEllipse( Position, EllipseCenter, EllipseRadius );
 				}
 
+
 				//	multiple segments need to accumulate winding angle to determine if we're inside
 				//	gr: currently assuming all data is the same type... need to redo this data to handle mixed types with same styles
-				if ( PathDataType == PATH_DATATYPE_BEZIER )
+				if ( PathMeta.PathType == PATH_TYPE_BEZIER )
 				{
 					float MinDistance = NULL_DISTANCE;
 					float CurrentSign = 1;
-					for ( int i=0;	i<PathDataCount;	i++ )
+
+					//	data is first point, then batches of controlin+controlout+end
+					float2 End = PathPoints[PathMeta.FirstPoint+0];
+					for ( int i=1;	i<PathMeta.PointCount;	i+=3 )
 					{
-						float4x4 PathData = PathDatas[PathDataIndex+i];
-						float2 Start = PathData[PATH_DATAROW_POSITION].xy;
-						float2 End = PathData[PATH_DATAROW_POSITION].zw;
-						float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
-						float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
+						int p = PathMeta.FirstPoint+i;
+						float2 Start = End;
+						float2 ControlIn = PathPoints[p+0].xy;
+						float2 ControlOut = PathPoints[p+1].xy;
+						End = PathPoints[p+2].xy;
 						Distance_t SegmentResult = DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End, CurrentSign );
 						MinDistance = min( MinDistance, SegmentResult.Distance );
 						CurrentSign = SegmentResult.Sign;
 					}
 
-					MinDistance *= CurrentSign;
+					//	fill if sign says we're inside the path
+					//MinDistance *= CurrentSign;
 					return MinDistance;
 				}
 
 				return NULL_DISTANCE;
+			}
+
+			float DistanceToShape(float2 Position,ShapeMeta_t ShapeMeta)
+			{
+				//	need to count how many shapes we're in to do odd/even holes 
+				int OverlapCount = 0;
+				float Distance = NULL_DISTANCE;
+				for ( int p=0;	p<ShapeMeta.PathCount;	p++ )
+				{
+					int PathIndex = (RenderOnlyPath==-1) ? ShapeMeta.FirstPath+p : RenderOnlyPath;
+
+					PathMeta_t PathMeta = GetPathMeta(PathIndex);
+					float PathDistance = DistanceToPath(Position,PathMeta);
+					if ( PathDistance <= 0 )
+						OverlapCount++;
+					Distance = min( Distance, PathDistance );
+				}
+/*
+				if ( (OverlapCount % 1) == 1 )
+				{
+					//	inside becomes hole
+					if ( Distance < 0 )
+						Distance *= -1;
+				}
+*/
+				return Distance;
 			}
 
 
@@ -608,15 +678,8 @@ float angle(float2 p0, float2 p1)
 					return sdPolygon( Points, Input.LocalPosition, 5 );
 				}
 	
-			
-
-				int PathDataType = PATH_DATATYPE_UNINITIALISED;
-				float Distance = DistanceToPath( Input.LocalPosition, Input.PathDataIndex, Input.PathDataCount, PathDataType);
-
-				if ( PathDataType == PATH_DATATYPE_NULL )
-				{
-					return NULL_DISTANCE;
-				}
+				ShapeMeta_t ShapeMeta = GetShapeMeta(Input.ShapeMeta);
+				float Distance = DistanceToShape( Input.LocalPosition, ShapeMeta );
 
 				return Distance;
 			}
@@ -698,7 +761,10 @@ float angle(float2 p0, float2 p1)
 					return lerp( Near, Far, DistanceNorm );
 				}
 
-				return GetSdfPathColour(Input);
+				float4 Colour = GetSdfPathColour(Input);
+				if ( Colour.w <= 0 )
+					discard;
+				return Colour;
 			}
 			ENDCG
 		}

@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using System.Collections.Generic;
 using System.Linq;
+using Codice.Client.BaseCommands.BranchExplorer;
 using PopLottie;
 
 namespace PopLottie
@@ -19,10 +20,11 @@ namespace PopLottie
 public class LottieSdf : MonoBehaviour
 {
 	//	shader constants
-	const int PATH_DATA_COUNT = 300;
-	const int PATH_DATATYPE_NULL = 0;
-	const int PATH_DATATYPE_ELLIPSE = 1;
-	const int PATH_DATATYPE_BEZIER = 2;
+	const int MAX_PATHMETAS = 50;
+	const int MAX_PATHPOINTS = 500;
+	const int PATH_TYPE_NULL = 0;
+	const int PATH_TYPE_ELLIPSE = 1;
+	const int PATH_TYPE_BEZIER = 2;
 	const int PATH_DATAROW_META = 0;
 	const int PATH_DATAROW_POSITION = 1;
 
@@ -107,8 +109,10 @@ public class LottieSdf : MonoBehaviour
 	
 		var RenderParams = new RenderParams(material);
 		//	gr: pad out this array to stop unity baking the max size
-		meshAndPathDatas.PathDatas.AddRange( new Matrix4x4[PATH_DATA_COUNT-meshAndPathDatas.PathDatas.Count] );
-		material.SetMatrixArray("PathDatas",meshAndPathDatas.PathDatas);
+		meshAndPathDatas.PathMetas.AddRange( new Vector4[MAX_PATHMETAS-meshAndPathDatas.PathMetas.Count] );
+		meshAndPathDatas.PathPoints.AddRange( new Vector4[MAX_PATHPOINTS-meshAndPathDatas.PathPoints.Count] );
+		material.SetVectorArray("PathMetas",meshAndPathDatas.PathMetas);
+		material.SetVectorArray("PathPoints",meshAndPathDatas.PathPoints);
 		
 		var LocalToWorld = this.transform.localToWorldMatrix;
 		var RenderObjectToWorld = LocalToWorld * VectorToLocalTransform;
@@ -118,40 +122,54 @@ public class LottieSdf : MonoBehaviour
 		//Debug.Log($"Triangle count; {Vector.indices.Length/3} - size{Vector.size}");
 	}
 	
-	struct MeshAndPathDatas
+	struct MeshAndUniforms
 	{
 		public Mesh				Mesh;
-		public List<Matrix4x4>	PathDatas;	//	just 16 floats
+		public List<Vector4>	PathMetas;
+		public List<Vector4>	PathPoints;
 	}
 	
 	//	make a mesh with quads for every shape/layer
 	//	todo: also need uniforms for instructions, colours etc for the shapes
-	MeshAndPathDatas GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip)
+	MeshAndUniforms GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip)
 	{
 		var Indexes = new List<int>();
+
+		//	gr: each quad is a shape. With a single style, and multiple paths (for holes)
 		
 		//	todo: turn all this into instancing data!
 		//		first version just simpler for shader dev
 		var LocalPositions = new List<Vector3>();
-		var QuadUvs = new List<Vector2>();	//	0,0...1,1
+		var QuadUvs = new List<Vector2>();			//	texcoord0 0,0...1,1
 		var FillColours = new List<Color>();
-		var StrokeColours = new List<Vector4>();	//	texcoord0
-		var PathMetas = new List<Vector4>();		//	texcoord1	x=PathIndex	y=strokewidth
-		
+		var StrokeColours = new List<Vector4>();	//	texcoord1
+		var StrokeWidths = new List<Vector4>();		//	texcoord2
+		var ShapeMetas = new List<Vector4>();		//	texcoord3
+
 		//	uniform data
-		var PathDatas = new List<Matrix4x4>();
+		var PathMetas = new List<Vector4>();
+		var PathPoints = new List<Vector4>();
 		var FlipMult = Flip ? -1 : 1;
 		
-		void AddQuad(Rect? bounds,int PathIndex,int PathCount,int z,Color? FillColourMaybe,Color? StrokeColourMaybe,float StrokeWidth)
+		Vector4 GetPathMeta(int PathType,int FirstPoint,int PointCount)
+		{
+			return new Vector4(PathType,FirstPoint,PointCount,0);
+		}
+		
+		Vector4 GetShapeMeta(int FirstPath,int PathCount)
+		{
+			return new Vector4(FirstPath,PathCount,0,0);
+		}
+
+		void AddQuad(Rect? bounds,Vector4 ShapeMeta,int z,Color? FillColourMaybe,Color? StrokeColourMaybe,float StrokeWidth)
 		{
 			if ( bounds == null )
 				return;
-			var rect = bounds.Value;
-			
-			var ClearColour = new Color(1,0,1,0.0f);
-			var FillColour = FillColourMaybe ?? ClearColour;
-			var StrokeColour = StrokeColourMaybe ?? ClearColour;
-			var PathMeta = new Vector4( StrokeWidth, PathIndex, PathCount, 0 );
+			var rect = new Rect( -1000,-1000,5000,5000 );//bounds.Value;
+			var ClearColourA = new Color(0,1,1,0);
+			var ClearColourB = new Color(1,1,0,0);
+			var FillColour = FillColourMaybe ?? ClearColourA;
+			var StrokeColour = StrokeColourMaybe ?? ClearColourB;
 			
 			var VertexIndex = LocalPositions.Count;
 			float zf = z * ZSpacing;
@@ -175,10 +193,14 @@ public class LottieSdf : MonoBehaviour
 			StrokeColours.Add(StrokeColour);
 			StrokeColours.Add(StrokeColour);
 			StrokeColours.Add(StrokeColour);
-			PathMetas.Add(PathMeta);
-			PathMetas.Add(PathMeta);
-			PathMetas.Add(PathMeta);
-			PathMetas.Add(PathMeta);
+			StrokeWidths.Add( new Vector4(StrokeWidth,StrokeWidth,StrokeWidth,StrokeWidth) );
+			StrokeWidths.Add( new Vector4(StrokeWidth,StrokeWidth,StrokeWidth,StrokeWidth) );
+			StrokeWidths.Add( new Vector4(StrokeWidth,StrokeWidth,StrokeWidth,StrokeWidth) );
+			StrokeWidths.Add( new Vector4(StrokeWidth,StrokeWidth,StrokeWidth,StrokeWidth) );
+			ShapeMetas.Add( ShapeMeta );
+			ShapeMetas.Add( ShapeMeta );
+			ShapeMetas.Add( ShapeMeta );
+			ShapeMetas.Add( ShapeMeta );
 			//	two triangles for quad
 			Indexes.Add(VertexIndex+0);
 			Indexes.Add(VertexIndex+1);
@@ -189,6 +211,77 @@ public class LottieSdf : MonoBehaviour
 			Indexes.Add(VertexIndex+3);
 		}
 
+		//	returns index of path point
+		int AddPathPoint(Vector2 Position,bool ApplyFlip=true)
+		{
+			var Index = PathPoints.Count;
+			if ( ApplyFlip ) 
+				Position.y *= FlipMult; 
+			PathPoints.Add(new Vector4(Position.x, Position.y, 0, 0) );
+			return Index;
+		}
+
+		//	returns Shape meta & bounds
+		(Vector4,Rect?) WritePaths(IEnumerable<PopLottie.RenderCommands.Path> Paths)
+		{
+			var NewPathMetas = new List<Vector4>();
+			Rect? Bounds = null;
+			
+			foreach (var Path in Paths )
+			{
+				//	gr: accumulate
+				if ( Bounds == null )
+					Bounds = Path.Bounds;
+				if ( Path.Bounds is Rect NewBounds )
+				{
+					Rect BigRect = new();
+					BigRect.xMin = Mathf.Min( NewBounds.xMin, Bounds.Value.xMin );
+					BigRect.yMin = Mathf.Min( NewBounds.yMin, Bounds.Value.yMin );
+					BigRect.xMax = Mathf.Max( NewBounds.xMax, Bounds.Value.xMax );
+					BigRect.yMax = Mathf.Max( NewBounds.yMax, Bounds.Value.yMax );
+					Bounds = BigRect;
+				}
+				
+				if ( Path.EllipsePath is RenderCommands.Ellipse e )
+				{
+					var FirstIndexe = AddPathPoint( e.Center );
+					AddPathPoint( e.Radius, false );
+					NewPathMetas.Add( GetPathMeta( PATH_TYPE_ELLIPSE, FirstIndexe, 2 ) );
+				}
+				else if ( Path.BezierPath?.Length > 0 )
+				{
+					var FirstIndexb = AddPathPoint( Path.BezierPath[0].End );
+					var LastIndex = FirstIndexb;
+
+					for ( var p=1;	p<Path.BezierPath.Length;	p++ )
+					{
+						var NextPoint = Path.BezierPath[p];
+						var PrevPoint = Path.BezierPath[p-1];
+						var Start = PrevPoint.End;
+						var ControlIn = NextPoint.ControlPointIn;
+						var ControlOut = NextPoint.ControlPointOut;
+						var End = NextPoint.End;
+						AddPathPoint( ControlIn );
+						AddPathPoint( ControlOut );
+						LastIndex = AddPathPoint(End);
+					}
+					int Countb = (LastIndex - FirstIndexb) + 1;
+					NewPathMetas.Add( GetPathMeta( PATH_TYPE_BEZIER, FirstIndexb, Countb ) );
+				}
+				else
+				{
+					NewPathMetas.Add( GetPathMeta( PATH_TYPE_NULL, 0, 0 ) );
+				}
+			}
+			
+			var FirstPathIndex = PathMetas.Count;
+			PathMetas.AddRange(NewPathMetas);
+			var PathCount = NewPathMetas.Count;
+			var ShapeMeta = GetShapeMeta( FirstPathIndex, PathCount );
+			return (ShapeMeta,Bounds);
+		}
+
+
 		var z = 0;
 		var Shapes = RenderFirstToLast ? Frame.Shapes : Frame.Shapes.ToArray().Reverse();
 		foreach (var Shape in Shapes)
@@ -197,63 +290,25 @@ public class LottieSdf : MonoBehaviour
 			var Stroke = Shape.Style.StrokeColour;
 			var StrokeWidth = Shape.Style.StrokeWidth;
 			var Paths = RenderFirstToLast ? Shape.Paths : Shape.Paths.Reverse();
-			foreach (var Path in Paths )
-			{
-				List<Matrix4x4> PathPathDatas = new ();
-				//	make path data
-				if ( Path.EllipsePath is RenderCommands.Ellipse e )
-				{
-					var PathData = new Matrix4x4();
-					PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_ELLIPSE,0,0,0) );
-					PathData.SetRow(PATH_DATAROW_POSITION, new Vector4( e.Center.x, e.Center.y*FlipMult, e.Radius.x, e.Radius.y ) );
-					PathPathDatas.Add(PathData);
-				}
-				else if ( Path.BezierPath?.Length > 0 )
-				{
-					
-					for ( var p=1;	p<Path.BezierPath.Length;	p++ )
-					{
-						var NextPoint = Path.BezierPath[p];
-						var PrevPoint = Path.BezierPath[p-1];
-						var PathData = new Matrix4x4();
-						PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_BEZIER,0,0,0) );
-						var Start = PrevPoint.End;
-						var ControlIn = NextPoint.ControlPointIn;
-						var ControlOut = NextPoint.ControlPointOut;
-						var End = NextPoint.End;
-						PathData.SetRow(PATH_DATAROW_POSITION+0, new Vector4( Start.x, Start.y*FlipMult, End.x, End.y*FlipMult ) );
-						PathData.SetRow(PATH_DATAROW_POSITION+1, new Vector4( ControlIn.x, ControlIn.y*FlipMult, ControlOut.x, ControlOut.y*FlipMult ) );
-						PathPathDatas.Add(PathData);
-					}
-				}
-				else
-				{
-					var PathData = new Matrix4x4();
-					PathData.SetRow(PATH_DATAROW_META, new Vector4(PATH_DATATYPE_NULL,0,0,0) );
-					PathPathDatas.Add(PathData);
-				}
-				
-				var PathIndex = PathDatas.Count;
-				foreach ( var SubPathData in PathPathDatas )
-				{
-					PathDatas.Add(SubPathData);
-				}
-				AddQuad( Path.Bounds, PathIndex, PathDatas.Count-PathIndex, z, Fill, Stroke, StrokeWidth??0 );
-				z++;
-			}
+			var (ShapeMeta,Bounds) = WritePaths(Paths);
+			
+			AddQuad( Bounds, ShapeMeta, z, Fill, Stroke, StrokeWidth??0 );
+			z++;
 		}
 		
 		var Mesh = new Mesh();
 		Mesh.SetVertices(LocalPositions);
-		Mesh.SetColors(FillColours);
 		Mesh.SetUVs(0,QuadUvs);
+		Mesh.SetColors(FillColours);
 		Mesh.SetUVs(1,StrokeColours);
-		Mesh.SetUVs(2,PathMetas);
+		Mesh.SetUVs(2,StrokeWidths);
+		Mesh.SetUVs(3,ShapeMetas);
 		Mesh.SetTriangles(Indexes,0,true);
 		
-		var MeshAndPath = new MeshAndPathDatas();
-		MeshAndPath.Mesh = Mesh;
-		MeshAndPath.PathDatas = PathDatas;
-		return MeshAndPath;
+		var meshAndUniforms = new MeshAndUniforms();
+		meshAndUniforms.Mesh = Mesh;
+		meshAndUniforms.PathMetas = PathMetas;
+		meshAndUniforms.PathPoints = PathPoints;
+		return meshAndUniforms;
 	}
 }
