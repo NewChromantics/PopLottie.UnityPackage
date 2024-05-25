@@ -33,11 +33,11 @@ Shader "PopLottie/LottieSdfPath"
 			struct appdata
 			{
 				float4 LocalPosition : POSITION;
-				float2 QuadUv : TEXCOORD0;	//	not sure we need this, all shape info is gonna be in local space
+				//float2 QuadUv : TEXCOORD0;	//	not sure we need this, all shape info is gonna be in local space
 				float4 FillColour : COLOR;
-				float4 StrokeColour : TEXCOORD1;
-				float4 StrokeWidth : TEXCOORD2;
-				float4 ShapeMeta : TEXCOORD3;
+				float4 StrokeColour : TEXCOORD0;
+				float4 StrokeWidth : TEXCOORD1;
+				float4 ShapeMeta : TEXCOORD2;
 			};
 
 			struct v2f
@@ -57,7 +57,7 @@ Shader "PopLottie/LottieSdfPath"
 #define NULL_DISTANCE	999
 #define DEBUG_CONTROLPOINT_SIZE	0.06
 #define DEBUG_BEZIER_CONTROLPOINTS false
-#define DEBUG_BEZIER_EDGES true
+#define DEBUG_BEZIER_EDGES false
 
 			float Debug_StrokeScale;
 			float Debug_ForceStrokeMin;
@@ -66,6 +66,7 @@ Shader "PopLottie/LottieSdfPath"
 float Debug_DistanceRepeats;
 #define DEBUG_DISTANCE	(Debug_DistanceRepeats >= 1.0)
 #define ENABLE_ANTIALIAS	true
+#define DISCARD_IF_TRANSPARENT	false
 			float AntialiasRadius;
 			int BezierArcSteps;
 			int RenderOnlyPath;
@@ -129,7 +130,7 @@ float Debug_DistanceRepeats;
 				o.StrokeColour = v.StrokeColour;
 				o.StrokeColour.w += Debug_AddStrokeAlpha;
 				o.StrokeWidth = v.StrokeWidth.x;
-				o.ShapeMeta = v.ShapeMeta.y;
+				o.ShapeMeta = v.ShapeMeta;
 				o.StrokeWidth = Debug_ForceStrokeMin + (o.StrokeWidth * Debug_StrokeScale);
 
 				//	correct colours for antialias blending
@@ -147,11 +148,11 @@ float Debug_DistanceRepeats;
 				o.OutsideColour = OutsideColour;
 				o.FillColour = FillColour;
 				o.StrokeColour = StrokeColour;
-if ( DEBUG_BEZIER_EDGES /*&& ENABLE_ANTIALIAS */)
-{
-	o.StrokeColour = float4(1,0,1,1);
-	o.StrokeWidth = 0.01;
-}
+				if ( DEBUG_BEZIER_EDGES /*&& ENABLE_ANTIALIAS */)
+				{
+					o.StrokeColour = float4(1,0,1,1);
+					o.StrokeWidth = 0.01;
+				}
 
 				return o;
 			}
@@ -581,7 +582,7 @@ float angle(float2 p0, float2 p1)
 				if ( PathMeta.PathType == PATH_TYPE_ELLIPSE )
 				{
 					float2 EllipseCenter = PathPoints[PathMeta.FirstPoint+0].xy;
-					float EllipseRadius = PathPoints[PathMeta.FirstPoint+1].z;
+					float EllipseRadius = PathPoints[PathMeta.FirstPoint+1].x;
 					return DistanceToEllipse( Position, EllipseCenter, EllipseRadius );
 				}
 
@@ -608,7 +609,7 @@ float angle(float2 p0, float2 p1)
 					}
 
 					//	fill if sign says we're inside the path
-					//MinDistance *= CurrentSign;
+					MinDistance *= CurrentSign;
 					return MinDistance;
 				}
 
@@ -630,14 +631,15 @@ float angle(float2 p0, float2 p1)
 						OverlapCount++;
 					Distance = min( Distance, PathDistance );
 				}
-/*
-				if ( (OverlapCount % 1) == 1 )
+
+				if ( (OverlapCount % 2) == 0 )
+				//if( OverlapCount > 1 )
 				{
 					//	inside becomes hole
-					if ( Distance < 0 )
+					if ( Distance < 0 )	
 						Distance *= -1;
 				}
-*/
+
 				return Distance;
 			}
 
@@ -762,7 +764,7 @@ float angle(float2 p0, float2 p1)
 				}
 
 				float4 Colour = GetSdfPathColour(Input);
-				if ( Colour.w <= 0 )
+				if ( DISCARD_IF_TRANSPARENT && Colour.w <= 0 )
 					discard;
 				return Colour;
 			}

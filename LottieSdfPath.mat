@@ -29,13 +29,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - AntialiasRadius: 0.0055
-    - BezierArcSteps: 10
+    - AntialiasRadius: 0.01
+    - BezierArcSteps: 24
     - Debug_AddStrokeAlpha: 0
     - Debug_BezierDistanceOffset: 0
     - Debug_DistanceRepeats: 0
     - Debug_ForceStrokeMin: 0
     - Debug_StrokeScale: 1
+    - RenderOnlyPath: -1
     - WindingMax: 227
     m_Colors: []
   m_BuildTextureStacks: []

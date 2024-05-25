@@ -298,11 +298,11 @@ public class LottieSdf : MonoBehaviour
 		
 		var Mesh = new Mesh();
 		Mesh.SetVertices(LocalPositions);
-		Mesh.SetUVs(0,QuadUvs);
+		//Mesh.SetUVs(0,QuadUvs);
 		Mesh.SetColors(FillColours);
-		Mesh.SetUVs(1,StrokeColours);
-		Mesh.SetUVs(2,StrokeWidths);
-		Mesh.SetUVs(3,ShapeMetas);
+		Mesh.SetUVs(0,StrokeColours);
+		Mesh.SetUVs(1,StrokeWidths);
+		Mesh.SetUVs(2,ShapeMetas);
 		Mesh.SetTriangles(Indexes,0,true);
 		
 		var meshAndUniforms = new MeshAndUniforms();
