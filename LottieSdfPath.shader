@@ -7,6 +7,8 @@ Shader "PopLottie/LottieSdfPath"
 		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
 		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
+		AntialiasRadius("AntialiasRadius", Range(0,0.01) ) = 0.005
+		[IntRange]BezierArcSteps("BezierArcSteps", Range(2,50) ) = 10
 	}
 	SubShader
 	{
@@ -61,6 +63,11 @@ Shader "PopLottie/LottieSdfPath"
 			float Debug_BezierDistanceOffset;
 float Debug_DistanceRepeats;
 #define DEBUG_DISTANCE	(Debug_DistanceRepeats >= 1.0)
+#define ENABLE_ANTIALIAS	true
+			float AntialiasRadius;
+			int BezierArcSteps;
+#define MIN_BEZIER_ARC_STEPS	3
+#define BEZIER_ARC_STEPS	max( BezierArcSteps, MIN_BEZIER_ARC_STEPS )
 
 			//	todo: how to represent bezier paths...
 			#define PATH_DATA_COUNT			300
@@ -303,7 +310,7 @@ float angle(float2 p0, float2 p1)
 			{
 				//	visualise bezier steps to make sure math above is right
 				float Distance = NULL_DISTANCE;
-				int Steps = 20;
+				int Steps = BEZIER_ARC_STEPS;
 				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
 				float2 PrevPos = FirstPos;
 
@@ -339,14 +346,12 @@ float angle(float2 p0, float2 p1)
 			{
 				//	visualise bezier steps to make sure math above is right
 				float Distance = NULL_DISTANCE;
-				int Steps = 10;
-
 				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
 				float2 PrevPos = FirstPos;
 
-				for ( int i=1;	i<Steps;	i++ )
+				for ( int i=1;	i<BEZIER_ARC_STEPS;	i++ )
 				{
-					float t = float(i) / float(Steps-1);
+					float t = float(i) / float(BEZIER_ARC_STEPS-1);
 					float2 NextPos = GetBezierPoint( a, b, c, d, t );
 					//float Distancet = distance( Position, Pointt );
 					
@@ -599,6 +604,19 @@ float angle(float2 p0, float2 p1)
 				return Distance;
 			}
 
+			float4 Antialias(float4 Outside,float4 Inside,float EdgeDistance,float Distance)
+			{
+				//	this radius/threshold needs to be related to final screen output
+				//	whereas distance is in quad-space
+				float Time = smoothstep( EdgeDistance-AntialiasRadius, EdgeDistance+AntialiasRadius, Distance );
+				return lerp( Inside, Outside, Time );
+
+				if ( Distance > EdgeDistance )
+					return Outside;
+				else 
+					return Inside;
+			}
+
 			//	this function is the true result - no debug
 			float4 GetSdfPathColour(v2f Input)
 			{
@@ -613,19 +631,42 @@ float angle(float2 p0, float2 p1)
 				//	really we need to do that anyway
 				float HalfStrokeWidth = Input.StrokeWidth / 2.0f;
 
-				//	todo: antialias/blend edges
-				//	outside path
-				if ( Distance > HalfStrokeWidth )
+				//	no AA, hard simple distance -> colour
+				if ( !ENABLE_ANTIALIAS )
 				{
-					return OUTSIDE_COLOUR;
-				}	
+					if ( Distance > HalfStrokeWidth )
+					{
+						return OUTSIDE_COLOUR;
+					}	
 
-				//	within stroke
-				if ( Distance > -HalfStrokeWidth )
-					return Input.StrokeColour;
+					//	within stroke
+					if ( Distance > -HalfStrokeWidth )
+						return Input.StrokeColour;
 
-				//	within fill (typically negative number)
-				return Input.FillColour;
+					//	within fill (typically negative number)
+					return Input.FillColour;
+				}
+
+				//	need to AA between
+				//		outside & stroke
+				//		stroke & fill
+				//	to avoid haloing, invisible layers need to use next layer's rgb
+				//	this logic will break a bit if we have neither stroke nor fill.
+				//	todo: this can all go in vertex shader!
+				bool HasStroke = HalfStrokeWidth > 0 && Input.StrokeColour.w > 0;
+				bool HasFill = Input.FillColour.w > 0;
+				float4 RemoveAlpha = float4(1,1,1,0);
+				float4 FillColour = HasFill ? Input.FillColour : Input.StrokeColour * RemoveAlpha;
+				float4 StrokeColour = HasStroke ? Input.StrokeColour : Input.FillColour * RemoveAlpha;
+				float4 OutsideColour = StrokeColour * RemoveAlpha;
+				
+				float4 Colour = OutsideColour;
+				//	outside -> outer stroke
+				Colour = Antialias( Colour, StrokeColour, HalfStrokeWidth, Distance );
+				//	inner stroke -> fill
+				Colour = Antialias( Colour, FillColour, -HalfStrokeWidth, Distance );
+				
+				return Colour;
 			}
 
 #define DEBUG_DISTANCE_CLIP_OUTSIDE	false
