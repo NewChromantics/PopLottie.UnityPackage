@@ -7,8 +7,6 @@ Shader "PopLottie/LottieSdfPath"
 		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
 		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
-		
-		WindingMax("WindingMax", Range(0.0, 900)) = 360.0
 	}
 	SubShader
 	{
@@ -74,13 +72,12 @@ float Debug_DistanceRepeats;
 			#define PATH_DATAROW_POSITION	1
 
 
-			float WindingMax;
 			uniform float4x4 PathDatas[PATH_DATA_COUNT];
 
-			struct DistanceAndWinding_t
+			struct Distance_t
 			{
 				float Distance;
-				float WindingAngle;
+				float Sign;
 			};
 
 			v2f vert (appdata v)
@@ -138,6 +135,53 @@ float Debug_DistanceRepeats;
 			{
 				float2 Near = NearestToLine2( Position, Start, End );
 				return length( Near - Position );
+			}
+
+
+			bool not(bool3 bools)
+			{
+				return bool3( !bools[0], !bools[1], !bools[2] );
+			}
+
+			float LengthSquared(float2 Delta)
+			{
+				return dot(Delta,Delta);
+			}
+
+			Distance_t DistanceToPolygonSegment(float2 Position,float2 Prev,float2 Next,float CurrentSign)
+			{
+				// distance
+				float2 DirToPrev = Prev - Next;
+				float2 DirToPoint = Position - Next;
+				float2 e = DirToPrev;
+				float2 w = DirToPoint;
+				float DistanceToPrevSq = LengthSquared(DirToPrev);
+				float ProjectionAlongLine = clamp( dot(w,e)/DistanceToPrevSq, 0.0, 1.0 );
+
+				float2 b = w - e * ProjectionAlongLine;
+				//float bdistsq = dot(b,b);
+				float bdistsq = DistanceToLine2(Position,Prev,Next );	
+				bdistsq *= bdistsq;
+
+				float distsq = bdistsq;
+
+				// winding number from http://geomalgorithms.com/a03-_inclusion.html
+				bool PointLowerThanThis = Position.y>= Next.y;
+				bool PointHigherThanPrev = Position.y < Prev.y;
+				bool3 cond = bool3( PointLowerThanThis, 
+									PointHigherThanPrev, 
+									e.x*w.y > e.y*w.x 
+				);
+
+				Distance_t Result;
+				Result.Sign = CurrentSign;
+				Result.Distance = sqrt(distsq);
+
+				//if( all(cond) || all(not(cond)) )
+				if ( cond[0]==cond[1] && cond[1] == cond[2] )
+					Result.Sign *= -1;
+		
+				return Result;
 			}
 
 			float DistanceToQuadratic(float2 Position,float2 Start,float2 ControlPoint,float2 End)
@@ -255,12 +299,11 @@ float angle(float2 p0, float2 p1)
 			}
 
 			//	brute force method to test GetBezierPoint() is correct and to test against
-			DistanceAndWinding_t DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d/*,inout float WindingCount*/)
+			Distance_t DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d)
 			{
 				//	visualise bezier steps to make sure math above is right
 				float Distance = NULL_DISTANCE;
-//	gr: more steps 
-				int Steps = 10;
+				int Steps = 20;
 				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
 				float2 PrevPos = FirstPos;
 
@@ -285,12 +328,59 @@ float angle(float2 p0, float2 p1)
 					//WindingAngle += DegreesBetweenPoints( PrevPos, FirstPos, Position );
 				}
 
-				DistanceAndWinding_t DistanceAndWinding;
+				Distance_t DistanceAndWinding;
 				DistanceAndWinding.Distance = Distance;
-				DistanceAndWinding.WindingAngle = WindingAngle;
+				DistanceAndWinding.Sign = WindingAngle > 0;
 				return DistanceAndWinding;
 			}
 
+			//	brute force method to test GetBezierPoint() is correct and to test against
+			Distance_t DistanceToCubic_StepAsPolygon(float2 Position,float2 a,float2 b,float2 c,float2 d,float CurrentSign)
+			{
+				//	visualise bezier steps to make sure math above is right
+				float Distance = NULL_DISTANCE;
+				int Steps = 10;
+
+				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
+				float2 PrevPos = FirstPos;
+
+				for ( int i=1;	i<Steps;	i++ )
+				{
+					float t = float(i) / float(Steps-1);
+					float2 NextPos = GetBezierPoint( a, b, c, d, t );
+					//float Distancet = distance( Position, Pointt );
+					
+					//float2 PrevToNextDistance = DistanceToLine2( Position, PrevPos, NextPos );
+					//Distance = min( Distance, PrevToNextDistance );
+
+					//if ( i < 3 )
+					//WindingAngle += DegreesBetweenPoints( PrevPos, NextPos, Position );
+
+					Distance_t DistAndFlip = DistanceToPolygonSegment( Position, PrevPos, NextPos, CurrentSign );
+
+					Distance = min( Distance, DistAndFlip.Distance );
+					CurrentSign = DistAndFlip.Sign;
+					
+					PrevPos = NextPos;
+				}
+	
+				//	gr: also need to include path closure for winding
+/* this closes just this arc! dont do it!
+				{
+					//WindingAngle += DegreesBetweenPoints( PrevPos, FirstPos, Position );
+					DistanceAndWinding_t DistAndFlip = DistanceToPolygonSegment( Position, PrevPos, FirstPos );
+
+					Distance = min( Distance, DistAndFlip.Distance );
+					if ( DistAndFlip.WindingAngle > 0 )
+						Sign = -Sign;
+
+				}
+*/
+				Distance_t DistanceAndWinding;
+				DistanceAndWinding.Distance = Distance;
+				DistanceAndWinding.Sign = CurrentSign;
+				return DistanceAndWinding;
+			}
 
 			float DistanceToCubicMix(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
 			{
@@ -303,9 +393,10 @@ float angle(float2 p0, float2 p1)
 				return abd;
 			}
 
-			DistanceAndWinding_t DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			Distance_t DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End,float CurrentSign)
 			{
-				return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End)
+				return DistanceToCubic_StepAsPolygon( Position, Start, ControlPointIn, ControlPointOut, End, CurrentSign)
+				//return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End)
 				//		- Debug_BezierDistanceOffset
 				;
 			}
@@ -358,7 +449,7 @@ float angle(float2 p0, float2 p1)
 
 			
 
-			DistanceAndWinding_t DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
+			Distance_t DistanceToCubicBezierSegment(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End,float CurrentSign)
 			{
 				float Distance = NULL_DISTANCE;
 				float ControlPointDistance = NULL_DISTANCE;
@@ -373,7 +464,7 @@ float angle(float2 p0, float2 p1)
 					ControlPointDistance = min( ControlPointDistance, DistanceToEllipse( Position, End, Rad ) );
 				}
 
-				DistanceAndWinding_t BezierDistanceAndWinding = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End);
+				Distance_t BezierDistanceAndWinding = DistanceToCubic(Position,Start,ControlPointIn,ControlPointOut,End, CurrentSign );
 				float BezierDistance = BezierDistanceAndWinding.Distance;
 				//float BezierDistance = cubic_bezier_dis(Position,Start,ControlPointIn,ControlPointOut,End );
 				//float BezierDistance = DistanceToLine2(Position,Start,End);
@@ -413,9 +504,9 @@ float angle(float2 p0, float2 p1)
 					Distance = min( Distance, EdgeDistance );
 				Distance = min( Distance, ControlPointDistance );
 
-				DistanceAndWinding_t DistanceAndWinding;
+				Distance_t DistanceAndWinding;
 				DistanceAndWinding.Distance = Distance;
-				DistanceAndWinding.WindingAngle = BezierDistanceAndWinding.WindingAngle;
+				DistanceAndWinding.Sign = BezierDistanceAndWinding.Sign;
 				return DistanceAndWinding;
 			}
 
@@ -436,9 +527,8 @@ float angle(float2 p0, float2 p1)
 				//	gr: currently assuming all data is the same type... need to redo this data to handle mixed types with same styles
 				if ( PathDataType == PATH_DATATYPE_BEZIER )
 				{
-					//	build up WindingAngle to determine if we've been ecompassed by a path (and therefore inside)
-					float WindingAngle = 0;
 					float MinDistance = NULL_DISTANCE;
+					float CurrentSign = 1;
 //PathDataCount = min(PathDataCount,2);
 					for ( int i=0;	i<PathDataCount;	i++ )
 					{
@@ -447,77 +537,44 @@ float angle(float2 p0, float2 p1)
 						float2 End = PathData[PATH_DATAROW_POSITION].zw;
 						float2 ControlIn = PathData[PATH_DATAROW_POSITION+1].xy;
 						float2 ControlOut = PathData[PATH_DATAROW_POSITION+1].zw;
-						DistanceAndWinding_t SegmentResult = DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End );
+						Distance_t SegmentResult = DistanceToCubicBezierSegment( Position, Start, ControlIn, ControlOut, End, CurrentSign );
 						MinDistance = min( MinDistance, SegmentResult.Distance );
-						WindingAngle += SegmentResult.WindingAngle;
+						CurrentSign = SegmentResult.Sign;
 					}
 
-					//WindingAngle = abs(WindingAngle) % 360;
-					bool Inside = abs(WindingAngle) > WindingMax;
-					//bool Inside = WindingAngle < -WindingMax;
-
-					return Inside ? -MinDistance : MinDistance;
+					MinDistance *= CurrentSign;
+					return MinDistance;
 				}
 
 				return NULL_DISTANCE;
 			}
 
-			bool not(bool3 bools)
-			{
-				return bool3( !bools[0], !bools[1], !bools[2] );
-			}
-
-			float LengthSquared(float2 Delta)
-			{
-				return dot(Delta,Delta);
-			}
 
 			#define MAX_POINTS	50
 			//	https://www.shadertoy.com/view/wdBXRW
 			float sdPolygon(float2 v[MAX_POINTS],float2 p,int PointCount)
 			{
 				//const int num = v.length();
-				float distsq = LengthSquared(p-v[0]);
-				float s = 1.0;
-				//for( int i=0, j=num-1; i<num; j=i, i++ )
+				//float distsq = LengthSquared(p-v[0]);
+				float dist = distance(p, v[0]);
+				float Sign = 1.0;
+
 				for( int i=0; i<PointCount;	i++ )
 				{
 					int prev = ((i-1)+PointCount) % PointCount;
-					// distance
-					float2 DirToPrev = v[prev] - v[i];
-					float2 DirToPoint = p - v[i];
-					float2 e = DirToPrev;
-					float2 w = DirToPoint;
-					float DistanceToPrevSq = LengthSquared(DirToPrev);
-					float ProjectionAlongLine = clamp( dot(w,e)/DistanceToPrevSq, 0.0, 1.0 );
-
-					float2 b = w - e * ProjectionAlongLine;
-					//float bdistsq = dot(b,b);
-					float bdistsq = DistanceToLine2(p,v[prev],v[i] );	
-					bdistsq *= bdistsq;
-
-					distsq = min( distsq, bdistsq );
-
-					// winding number from http://geomalgorithms.com/a03-_inclusion.html
-					bool PointLowerThanThis = p.y>=v[i].y;
-					bool PointHigherThanPrev = p.y < v[prev].y;
-					bool3 cond = bool3( PointLowerThanThis, 
-										PointHigherThanPrev, 
-										e.x*w.y > e.y*w.x 
-					);
-
-					//if( all(cond) || all(not(cond)) )
-					if ( cond[0]==cond[1] && cond[1] == cond[2] )
-						s = -s;  
+			
+					Distance_t DistAndFlip = DistanceToPolygonSegment( p, v[prev], v[i], Sign );
+					dist = min( dist, DistAndFlip.Distance );
+					Sign = DistAndFlip.Sign;
 				}
 
-				return s*sqrt(distsq);
+				return dist * Sign;
 			}
 
 
 			float GetSdfPathDistance(v2f Input)
 			{
-				#define DEBUG_POLYGON	true
+				#define DEBUG_POLYGON	false
 				if ( DEBUG_POLYGON )
 				{
 					float2 Points[MAX_POINTS];

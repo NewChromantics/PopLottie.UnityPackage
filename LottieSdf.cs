@@ -240,10 +240,7 @@ public class LottieSdf : MonoBehaviour
 				}
 				AddQuad( Path.Bounds, PathIndex, PathDatas.Count-PathIndex, z, Fill, Stroke, StrokeWidth??0 );
 				z++;
-				
-				//break;
 			}
-			//break;
 		}
 		
 		var Mesh = new Mesh();
