@@ -20,6 +20,10 @@ Shader "PopLottie/LottieSdfPath"
 		Pass
 		{
 			CGPROGRAM
+// Upgrade NOTE: excluded shader from DX11, OpenGL ES 2.0 because it uses unsized arrays
+#pragma exclude_renderers d3d11 gles
+// Upgrade NOTE: excluded shader from DX11 because it uses wrong array syntax (type[size] name)
+#pragma exclude_renderers d3d11
 			#pragma vertex vert
 			#pragma fragment frag
 
@@ -458,40 +462,104 @@ float angle(float2 p0, float2 p1)
 				return NULL_DISTANCE;
 			}
 
-			fixed4 frag (v2f Input) : SV_Target
+			bool not(bool3 bools)
 			{
+				return bool3( !bools[0], !bools[1], !bools[2] );
+			}
+
+			float LengthSquared(float2 Delta)
+			{
+				return dot(Delta,Delta);
+			}
+
+			#define MAX_POINTS	50
+			//	https://www.shadertoy.com/view/wdBXRW
+			float sdPolygon(float2 v[MAX_POINTS],float2 p,int PointCount)
+			{
+				//const int num = v.length();
+				float distsq = LengthSquared(p-v[0]);
+				float s = 1.0;
+				//for( int i=0, j=num-1; i<num; j=i, i++ )
+				for( int i=0; i<PointCount;	i++ )
+				{
+					int prev = ((i-1)+PointCount) % PointCount;
+					// distance
+					float2 DirToPrev = v[prev] - v[i];
+					float2 DirToPoint = p - v[i];
+					float2 e = DirToPrev;
+					float2 w = DirToPoint;
+					float DistanceToPrevSq = LengthSquared(DirToPrev);
+					float ProjectionAlongLine = clamp( dot(w,e)/DistanceToPrevSq, 0.0, 1.0 );
+
+					float2 b = w - e * ProjectionAlongLine;
+					//float bdistsq = dot(b,b);
+					float bdistsq = DistanceToLine2(p,v[prev],v[i] );	
+					bdistsq *= bdistsq;
+
+					distsq = min( distsq, bdistsq );
+
+					// winding number from http://geomalgorithms.com/a03-_inclusion.html
+					bool PointLowerThanThis = p.y>=v[i].y;
+					bool PointHigherThanPrev = p.y < v[prev].y;
+					bool3 cond = bool3( PointLowerThanThis, 
+										PointHigherThanPrev, 
+										e.x*w.y > e.y*w.x 
+					);
+
+					//if( all(cond) || all(not(cond)) )
+					if ( cond[0]==cond[1] && cond[1] == cond[2] )
+						s = -s;  
+				}
+
+				return s*sqrt(distsq);
+			}
+
+
+			float GetSdfPathDistance(v2f Input)
+			{
+				#define DEBUG_POLYGON	true
+				if ( DEBUG_POLYGON )
+				{
+					float2 Points[MAX_POINTS];
+					Points[0] = float2(0.1,0.1);
+					Points[1] = float2(0.7,0.2);
+					Points[2] = float2(0.9,0.5);
+					Points[3] = float2(0.4,0.7);
+					Points[4] = float2(0.1,0.9);
+					return sdPolygon( Points, Input.LocalPosition, 5 );
+				}
+	
+			
+
 				int PathDataType = PATH_DATATYPE_UNINITIALISED;
 				float Distance = DistanceToPath( Input.LocalPosition, Input.PathDataIndex, Input.PathDataCount, PathDataType);
 
 				if ( PathDataType == PATH_DATATYPE_NULL )
 				{
-					Distance = -1;	//	fill the quad
+					return NULL_DISTANCE;
+				}
+
+				return Distance;
+			}
+
+			//	this function is the true result - no debug
+			float4 GetSdfPathColour(v2f Input)
+			{
+				float Distance = GetSdfPathDistance(Input);
+				if ( Distance >= NULL_DISTANCE )
+				{
+					//discard;
 					return NULL_PATH_COLOUR;
 				}
 
 				//	whilst we have layers, we should do alpha blending instead of clipping
 				//	really we need to do that anyway
 				float HalfStrokeWidth = Input.StrokeWidth / 2.0f;
+
 				//	todo: antialias/blend edges
-				
 				//	outside path
 				if ( Distance > HalfStrokeWidth )
 				{
-					//	draw distance
-					if ( DEBUG_DISTANCE )
-					{
-						float RepeatStep = 1.0f / Debug_DistanceRepeats;
-						float DistanceNorm = (abs(Distance) % RepeatStep ) / RepeatStep;
-						float DistanceAlpha = 0.2;
-						float4 Near = float4(1,1,1,DistanceAlpha);
-						float4 Far = float4(0,0,0,DistanceAlpha);
-						if ( Distance < 0 )
-						{
-							Near.xyz = float3(1,0,0);
-							Far.xyz = float3(1,0,0);
-						}
-						return lerp( Near, Far, DistanceNorm );
-					}
 					return OUTSIDE_COLOUR;
 				}	
 
@@ -501,10 +569,34 @@ float angle(float2 p0, float2 p1)
 
 				//	within fill (typically negative number)
 				return Input.FillColour;
-				float DistanceT = (-Distance ) / 0.3f;
-				float4 Red = float4(1,0,0,1);
-				float4 Green = float4(0,0,1,1);
-				return lerp( Red, Green, DistanceT );
+			}
+
+#define DEBUG_DISTANCE_CLIP_OUTSIDE	false
+			fixed4 frag (v2f Input) : SV_Target
+			{
+				//	draw distance
+				if ( DEBUG_DISTANCE )
+				{
+					float Distance = GetSdfPathDistance(Input);
+					float RepeatStep = 1.0f / Debug_DistanceRepeats;
+					float DistanceNorm = (abs(Distance) % RepeatStep ) / RepeatStep;
+					float DistanceAlpha = 0.2;
+					float4 Near = float4(1,1,1,DistanceAlpha);
+					float4 Far = float4(0,0,0,DistanceAlpha);
+					//	inside
+					if ( Distance < 0 )
+					{
+						Near.xyz = float3(3,1,1);
+						Far.xyz = float3(0,0,0);
+					}
+					else if ( DEBUG_DISTANCE_CLIP_OUTSIDE )
+					{
+						discard;
+					}
+					return lerp( Near, Far, DistanceNorm );
+				}
+
+				return GetSdfPathColour(Input);
 			}
 			ENDCG
 		}
