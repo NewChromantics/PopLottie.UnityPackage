@@ -42,11 +42,12 @@ Shader "PopLottie/LottieSdfPath"
 			{
 				float4 ClipPosition : SV_POSITION;
 				float2 LocalPosition : TEXCOORD0;
-				float4 FillColour : TEXCOORD1;
-				float4 StrokeColour : TEXCOORD2;
-				float StrokeWidth : TEXCOORD3;
-				int PathDataIndex : TEXCOORD4;
-				int PathDataCount : TEXCOORD5;
+				float4 OutsideColour : TEXCOORD1;
+				float4 FillColour : TEXCOORD2;
+				float4 StrokeColour : TEXCOORD3;
+				float StrokeWidth : TEXCOORD4;
+				int PathDataIndex : TEXCOORD5;
+				int PathDataCount : TEXCOORD6;
 			};
 
 			#define ENABLE_DEBUG_INVISIBLE	false
@@ -99,6 +100,23 @@ float Debug_DistanceRepeats;
 				o.PathDataIndex = v.PathMeta.y;
 				o.PathDataCount = v.PathMeta.z;
 				o.StrokeWidth = Debug_ForceStrokeMin + (o.StrokeWidth * Debug_StrokeScale);
+
+				//	correct colours for antialias blending
+				//	need to AA between
+				//		outside & stroke
+				//		stroke & fill
+				//	to avoid haloing, invisible layers need to use next layer's rgb
+				//	this logic will break a bit if we have neither stroke nor fill.
+				bool HasStroke = o.StrokeWidth > 0 && o.StrokeColour.w > 0;
+				bool HasFill = o.FillColour.w > 0;
+				float4 RemoveAlpha = float4(1,1,1,0);
+				float4 FillColour = HasFill ? o.FillColour : o.StrokeColour * RemoveAlpha;
+				float4 StrokeColour = HasStroke ? o.StrokeColour : o.FillColour * RemoveAlpha;
+				float4 OutsideColour = StrokeColour * RemoveAlpha;
+				o.OutsideColour = OutsideColour;
+				o.FillColour = FillColour;
+				o.StrokeColour = StrokeColour;
+
 				return o;
 			}
 	
@@ -534,7 +552,6 @@ float angle(float2 p0, float2 p1)
 				{
 					float MinDistance = NULL_DISTANCE;
 					float CurrentSign = 1;
-//PathDataCount = min(PathDataCount,2);
 					for ( int i=0;	i<PathDataCount;	i++ )
 					{
 						float4x4 PathData = PathDatas[PathDataIndex+i];
@@ -646,25 +663,12 @@ float angle(float2 p0, float2 p1)
 					//	within fill (typically negative number)
 					return Input.FillColour;
 				}
-
-				//	need to AA between
-				//		outside & stroke
-				//		stroke & fill
-				//	to avoid haloing, invisible layers need to use next layer's rgb
-				//	this logic will break a bit if we have neither stroke nor fill.
-				//	todo: this can all go in vertex shader!
-				bool HasStroke = HalfStrokeWidth > 0 && Input.StrokeColour.w > 0;
-				bool HasFill = Input.FillColour.w > 0;
-				float4 RemoveAlpha = float4(1,1,1,0);
-				float4 FillColour = HasFill ? Input.FillColour : Input.StrokeColour * RemoveAlpha;
-				float4 StrokeColour = HasStroke ? Input.StrokeColour : Input.FillColour * RemoveAlpha;
-				float4 OutsideColour = StrokeColour * RemoveAlpha;
 				
-				float4 Colour = OutsideColour;
+				float4 Colour = Input.OutsideColour;
 				//	outside -> outer stroke
-				Colour = Antialias( Colour, StrokeColour, HalfStrokeWidth, Distance );
+				Colour = Antialias( Colour, Input.StrokeColour, HalfStrokeWidth, Distance );
 				//	inner stroke -> fill
-				Colour = Antialias( Colour, FillColour, -HalfStrokeWidth, Distance );
+				Colour = Antialias( Colour, Input.FillColour, -HalfStrokeWidth, Distance );
 				
 				return Colour;
 			}
