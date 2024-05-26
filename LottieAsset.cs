@@ -141,52 +141,28 @@ public class LottieAsset : ScriptableObject
 	
 	public static Texture2D RenderFrameToTexture2D(PopLottie.RenderCommands.AnimationFrame Frame,float FrameQualityScalar, int width, int height, Material mat, int antiAliasing = 1)
 	{
-		if (width <= 0 || height <= 0)
-			return null;
-
-		RenderTexture rt = null;
-		var oldActive = RenderTexture.active;
-
-		var desc = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0) {
-			msaaSamples = antiAliasing,
-			sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear
-		};
-
-		rt = RenderTexture.GetTemporary(desc);
-
-		var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
-		var Mesh = MeshAndTransform.Item1;
-		var Transform = MeshAndTransform.Item2;
-		
-		//	gr: for some reason, this doesn't work with icons...
-		var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
-		cmdBuf.SetRenderTarget(rt);
-		cmdBuf.ClearRenderTarget(true, true, new Color(0,1,1,0.1f) );
-		cmdBuf.DrawMesh(Mesh, Transform, mat, 0);
-		Graphics.ExecuteCommandBuffer(cmdBuf);
-
-		RenderTexture.active = rt;
-		
-		var RenderParams = new RenderParams(mat);
-		//Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
-		//Graphics.DrawMesh(Mesh,Transform,mat,0);
-		
-		Texture2D copy = new Texture2D(width, height, TextureFormat.RGBA32, false);
-		copy.hideFlags = HideFlags.HideAndDontSave;
-		copy.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-		copy.Apply();
-
-		RenderTexture.active = oldActive;
-		RenderTexture.ReleaseTemporary(rt);
-
-		return copy;
+		void Render(RenderTexture rt)
+		{
+			var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
+			var Mesh = MeshAndTransform.Item1;
+			var Transform = MeshAndTransform.Item2;
+			
+			//	gr: for some reason, this doesn't work with icons...
+			var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
+			cmdBuf.SetRenderTarget(rt);
+			cmdBuf.ClearRenderTarget(true, true, new Color(0,1,1,0.1f) );
+			cmdBuf.DrawMesh(Mesh, Transform, mat, 0);
+			Graphics.ExecuteCommandBuffer(cmdBuf);
+			
+			var RenderParams = new RenderParams(mat);
+			//Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
+			//Graphics.DrawMesh(Mesh,Transform,mat,0);
+		}
+		return RenderToTexture(width,height,antiAliasing,Render);
 	}
 	
-	 public static Texture2D RenderVectorImageToTexture2D(VectorImageHack.InternalBridge.VectorImageUnlocked o, int width, int height, Material mat, int antiAliasing = 1)
+	public static Texture2D RenderToTexture(int width,int height,int AntiAliasingSamples,Action<RenderTexture> Render)
 	{
-		if (o == null)
-			return null;
-
 		if (width <= 0 || height <= 0)
 			return null;
 
@@ -194,30 +170,18 @@ public class LottieAsset : ScriptableObject
 		var oldActive = RenderTexture.active;
 
 		var desc = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0) {
-			msaaSamples = antiAliasing,
+			msaaSamples = AntiAliasingSamples,
 			sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear
 		};
 
 		rt = RenderTexture.GetTemporary(desc);
 		RenderTexture.active = rt;
-		
-		Vector2[] vertices = null;
-		UInt16[] indices = null;
-		Vector2[] uvs = null;
-		Color[] colors = null;
-		Vector2[] settingIndices = null;
-		Texture2D atlas = null;
-		Vector2 size = Vector2.zero;
-		VectorImageHack.InternalBridge.GradientSettings/*Bridge*/[] settings = null;
-		if (VectorImageHack.InternalBridge.GetDataFromVectorImage(o, ref vertices, ref indices, ref uvs, ref colors, ref settingIndices, ref settings, ref atlas, ref size))
+
+		try
 		{
-			vertices = vertices.Select(v => new Vector2(v.x/size.x, 1.0f-v.y/size.y)).ToArray();
-			//Texture2D atlasWithEncodedSettings = atlas != null ? BuildAtlasWithEncodedSettings(settings, atlas) : null;
-			Texture2D atlasWithEncodedSettings = null;
-			RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat);
-			Texture2D.DestroyImmediate(atlasWithEncodedSettings);
+			Render(rt);
 		}
-		else
+		catch(Exception e)
 		{
 			RenderTexture.active = oldActive;
 			RenderTexture.ReleaseTemporary(rt);
@@ -233,6 +197,33 @@ public class LottieAsset : ScriptableObject
 		RenderTexture.ReleaseTemporary(rt);
 
 		return copy;
+	}
+	
+	 public static Texture2D RenderVectorImageToTexture2D(VectorImageHack.InternalBridge.VectorImageUnlocked o, int width, int height, Material mat, int antiAliasing = 1)
+	{
+		void Render(RenderTexture rt)
+		{
+			if (o == null)
+				throw new Exception("Missing vector image");
+			
+			Vector2[] vertices = null;
+			UInt16[] indices = null;
+			Vector2[] uvs = null;
+			Color[] colors = null;
+			Vector2[] settingIndices = null;
+			Texture2D atlas = null;
+			Vector2 size = Vector2.zero;
+			VectorImageHack.InternalBridge.GradientSettings/*Bridge*/[] settings = null;
+			if (!VectorImageHack.InternalBridge.GetDataFromVectorImage(o, ref vertices, ref indices, ref uvs, ref colors, ref settingIndices, ref settings, ref atlas, ref size))
+				throw new Exception($"Failed to get mesh data from vector");
+
+			vertices = vertices.Select(v => new Vector2(v.x/size.x, 1.0f-v.y/size.y)).ToArray();
+			//Texture2D atlasWithEncodedSettings = atlas != null ? BuildAtlasWithEncodedSettings(settings, atlas) : null;
+			Texture2D atlasWithEncodedSettings = null;
+			RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat);
+			Texture2D.DestroyImmediate(atlasWithEncodedSettings);
+		}
+		return RenderToTexture(width,height,antiAliasing,Render);
 	}
 	
 	internal static void RenderFromArrays(Vector2[] vertices, UInt16[] indices, Vector2[] uvs, Color[] colors, Vector2[] settings, Texture2D texture, Material mat, bool clear = true)
