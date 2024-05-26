@@ -128,20 +128,56 @@ public class LottieAsset : ScriptableObject
 		
 		var RenderRect = new Rect(0,0,Width*VectorScalar,Height*VectorScalar);
 		var Frame = Anim.Render(0.0f,RenderRect,ScaleMode.ScaleToFit);
-		
-		var Vector = PopLottie.AnimationMesh.GetImageMesh(Frame,RenderDebug:false);
 
-		var RenderShader = Shader.Find("Unlit/VectorUI");
-		Material renderMat = new Material(RenderShader);
-		var Texture = RenderVectorImageToTexture2D(Vector,Width*RasterisedTextureScalar,Height*RasterisedTextureScalar,renderMat);
-		//var Texture = RenderFrameToTexture2D(Frame,VectorScalar,Width,Height,renderMat);
+		//	render with sdf
+		bool RenderWithSdfMethod = true;
+		if ( RenderWithSdfMethod )
+		{
+			return RenderWithSdf( Frame, Width, Height, VectorScalar );
+		}
+		else
+		{
+			var Vector = PopLottie.AnimationMesh.GetImageMesh(Frame,RenderDebug:false);
 
-		return Texture;
+			var RenderShader = Shader.Find("Unlit/VectorUI");
+			Material renderMat = new Material(RenderShader);
+			var Texture = RenderVectorImageToTexture2D(Vector,Width*RasterisedTextureScalar,Height*RasterisedTextureScalar,renderMat);
+			//var Texture = RenderFrameToTexture2D(Frame,VectorScalar,Width,Height,renderMat);
+			return Texture;
+		}
+	}
+	
+	static Texture2D RenderWithSdf(PopLottie.RenderCommands.AnimationFrame Frame,int Width,int Height,float VectorScale)
+	{
+		float ZSpacing = 0.0001f;
+		var MeshAndUniforms = LottieSdf.GenerateLayerMesh( Frame, false, ZSpacing );
+
+		void Render(RenderTexture rt,Color ClearColour)
+		{
+			//var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
+			var Mesh = MeshAndUniforms.Mesh;
+			var Transform = Matrix4x4.Scale( new Vector3(1/VectorScale,1/VectorScale,1));
+			
+			var RenderShader = Shader.Find("PopLottie/LottieSdfPath");
+			Material RenderMat = new Material(RenderShader);
+			MeshAndUniforms.ApplyUniforms(RenderMat);
+			//	gr: for some reason, this doesn't work with icons...
+			var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
+			cmdBuf.SetRenderTarget(rt);
+			cmdBuf.ClearRenderTarget(true, true, ClearColour );
+			cmdBuf.DrawMesh(Mesh, Transform, RenderMat, 0);
+			Graphics.ExecuteCommandBuffer(cmdBuf);
+			
+			//var RenderParams = new RenderParams(mat);
+			//Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
+			//Graphics.DrawMesh(Mesh,Transform,mat,0);
+		}
+		return RenderToTexture(Width,Height,1,Render);
 	}
 	
 	public static Texture2D RenderFrameToTexture2D(PopLottie.RenderCommands.AnimationFrame Frame,float FrameQualityScalar, int width, int height, Material mat, int antiAliasing = 1)
 	{
-		void Render(RenderTexture rt)
+		void Render(RenderTexture rt,Color ClearColour)
 		{
 			var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
 			var Mesh = MeshAndTransform.Item1;
@@ -150,7 +186,7 @@ public class LottieAsset : ScriptableObject
 			//	gr: for some reason, this doesn't work with icons...
 			var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
 			cmdBuf.SetRenderTarget(rt);
-			cmdBuf.ClearRenderTarget(true, true, new Color(0,1,1,0.1f) );
+			cmdBuf.ClearRenderTarget(true, true, ClearColour );
 			cmdBuf.DrawMesh(Mesh, Transform, mat, 0);
 			Graphics.ExecuteCommandBuffer(cmdBuf);
 			
@@ -161,7 +197,7 @@ public class LottieAsset : ScriptableObject
 		return RenderToTexture(width,height,antiAliasing,Render);
 	}
 	
-	public static Texture2D RenderToTexture(int width,int height,int AntiAliasingSamples,Action<RenderTexture> Render)
+	public static Texture2D RenderToTexture(int width,int height,int AntiAliasingSamples,Action<RenderTexture,Color> Render)
 	{
 		if (width <= 0 || height <= 0)
 			return null;
@@ -176,10 +212,10 @@ public class LottieAsset : ScriptableObject
 
 		rt = RenderTexture.GetTemporary(desc);
 		RenderTexture.active = rt;
-
+		var ClearColour = new Color(0,1,1,0);
 		try
 		{
-			Render(rt);
+			Render(rt,ClearColour);
 		}
 		catch(Exception e)
 		{
@@ -201,7 +237,7 @@ public class LottieAsset : ScriptableObject
 	
 	 public static Texture2D RenderVectorImageToTexture2D(VectorImageHack.InternalBridge.VectorImageUnlocked o, int width, int height, Material mat, int antiAliasing = 1)
 	{
-		void Render(RenderTexture rt)
+		void Render(RenderTexture rt,Color ClearColour)
 		{
 			if (o == null)
 				throw new Exception("Missing vector image");
@@ -220,19 +256,18 @@ public class LottieAsset : ScriptableObject
 			vertices = vertices.Select(v => new Vector2(v.x/size.x, 1.0f-v.y/size.y)).ToArray();
 			//Texture2D atlasWithEncodedSettings = atlas != null ? BuildAtlasWithEncodedSettings(settings, atlas) : null;
 			Texture2D atlasWithEncodedSettings = null;
-			RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat);
+			RenderFromArrays(vertices, indices, uvs, colors, settingIndices, atlasWithEncodedSettings, mat,ClearColour);
 			Texture2D.DestroyImmediate(atlasWithEncodedSettings);
 		}
 		return RenderToTexture(width,height,antiAliasing,Render);
 	}
 	
-	internal static void RenderFromArrays(Vector2[] vertices, UInt16[] indices, Vector2[] uvs, Color[] colors, Vector2[] settings, Texture2D texture, Material mat, bool clear = true)
+	internal static void RenderFromArrays(Vector2[] vertices, UInt16[] indices, Vector2[] uvs, Color[] colors, Vector2[] settings, Texture2D texture, Material mat,Color ClearColour)
 	{
 		mat.SetTexture("_MainTex", texture);
 		mat.SetPass(0);
 
-		if (clear)
-			GL.Clear(true, true, Color.clear);
+		GL.Clear(true, true, ClearColour);
 
 		GL.PushMatrix();
 		GL.LoadOrtho();

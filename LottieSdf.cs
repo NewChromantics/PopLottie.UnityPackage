@@ -103,17 +103,12 @@ public class LottieSdf : MonoBehaviour
 	
 		//	gr: don't really wanna do this on cpu! and instead see if we can
 		//		dump the values into buffers for a shader
-		var meshAndPathDatas = GenerateLayerMesh(Frame,Flip:true);
+		var meshAndPathDatas = GenerateLayerMesh(Frame,Flip:true,this.ZSpacing);
 		var Mesh = meshAndPathDatas.Mesh;
 		var VectorToLocalTransform = Matrix4x4.identity;
 	
 		var RenderParams = new RenderParams(material);
-		//	gr: pad out this array to stop unity baking the max size
-		meshAndPathDatas.PathMetas.AddRange( new Vector4[MAX_PATHMETAS-meshAndPathDatas.PathMetas.Count] );
-		meshAndPathDatas.PathPoints.AddRange( new Vector4[MAX_PATHPOINTS-meshAndPathDatas.PathPoints.Count] );
-		material.SetVectorArray("PathMetas",meshAndPathDatas.PathMetas);
-		material.SetVectorArray("PathPoints",meshAndPathDatas.PathPoints);
-		
+		meshAndPathDatas.ApplyUniforms(material);
 		var LocalToWorld = this.transform.localToWorldMatrix;
 		var RenderObjectToWorld = LocalToWorld * VectorToLocalTransform;
 		
@@ -122,16 +117,25 @@ public class LottieSdf : MonoBehaviour
 		//Debug.Log($"Triangle count; {Vector.indices.Length/3} - size{Vector.size}");
 	}
 	
-	struct MeshAndUniforms
+	public struct MeshAndUniforms
 	{
 		public Mesh				Mesh;
 		public List<Vector4>	PathMetas;
 		public List<Vector4>	PathPoints;
+		
+		public void				ApplyUniforms(Material material)
+		{
+			//	gr: pad out this array to stop unity baking the max size
+			PathMetas.AddRange( new Vector4[MAX_PATHMETAS-PathMetas.Count] );
+			PathPoints.AddRange( new Vector4[MAX_PATHPOINTS-PathPoints.Count] );
+			material.SetVectorArray("PathMetas",PathMetas);
+			material.SetVectorArray("PathPoints",PathPoints);
+		}
 	}
 	
 	//	make a mesh with quads for every shape/layer
 	//	todo: also need uniforms for instructions, colours etc for the shapes
-	MeshAndUniforms GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip)
+	static public MeshAndUniforms GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip,float ZSpacing)
 	{
 		var Indexes = new List<int>();
 
@@ -283,6 +287,7 @@ public class LottieSdf : MonoBehaviour
 
 
 		var z = 0;
+		var RenderFirstToLast = true;
 		var Shapes = RenderFirstToLast ? Frame.Shapes : Frame.Shapes.ToArray().Reverse();
 		foreach (var Shape in Shapes)
 		{
