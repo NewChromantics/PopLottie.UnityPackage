@@ -7,7 +7,7 @@ Shader "PopLottie/LottieSdfPath"
 		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
 		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
 		Debug_BezierDistanceOffset ("Debug_BezierDistanceOffset", Range(0.0, 1.0)) = 1.0
-		AntialiasRadius("AntialiasRadius", Range(0,0.01) ) = 0.005
+		AntialiasRadius("AntialiasRadius", Range(0,0.01) ) = 0.01
 		[IntRange]BezierArcSteps("BezierArcSteps", Range(2,50) ) = 10
 		[IntRange]RenderOnlyPath("RenderOnlyPath", Range(-1,20) ) = -1
 	}

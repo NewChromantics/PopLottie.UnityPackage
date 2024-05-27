@@ -3,6 +3,8 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 using System.Linq;
+using UnityEditor.Graphs;
+using UnityEngine.UI;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.AssetImporters;
@@ -112,10 +114,44 @@ namespace VectorImageHack
 public class LottieAsset : ScriptableObject
 {
 	//public PopLottie.Animation  Animation;  //  cache
-	public PopLottie.Animation  Animation => PopLottie.Animation.Parse(Json);
-	public string               Json;
+	public PopLottie.Animation	Animation => PopLottie.Animation.Parse(Json);
+	public string				Json;
+	
+	//	using this private variable means it wont be serialised, but will be cached during editor session
+	//	reimport asset to wipe it
+	Texture2D					ThumbnailCache;
+	
+	public void ClearPreviewCache()
+	{
+		ThumbnailCache = null;
+	}
 	
 	public Texture2D            GetPreview(int Width,int Height)
+	{
+		int MinSize = 400;
+
+		//	clear old caches if we changed the min size
+		//	gr: ThumbnaCache?.width here throws because variable is null??
+		if ( ThumbnailCache != null )
+			if ( ThumbnailCache?.width < MinSize || ThumbnailCache?.height < MinSize )
+				ClearPreviewCache(); 
+		
+		if ( ThumbnailCache != null )
+		{
+			//Debug.Log($"Using cache of {this.name} {ThumbnailCache.width}x{ThumbnailCache.height}");
+			return ThumbnailCache;
+		}
+		
+		//	"pre draw" previews have w/h as 1x1, i'm not sure what this is for...
+		//	just always render a sensible size
+		Width = Mathf.Max(MinSize,Width);
+		Height = Mathf.Max(MinSize,Height);
+		ThumbnailCache = RenderThumbnail(Width,Height);
+		Debug.Log($"Rendering cache of {this.name} {ThumbnailCache.width}x{ThumbnailCache.height}");
+		return ThumbnailCache;
+	}
+
+	Texture2D			RenderThumbnail(int Width,int Height)
 	{
 		//  render the asset to a painter to get a vector image
 		//  then rasterise the vector
@@ -123,8 +159,9 @@ public class LottieAsset : ScriptableObject
 		//  making the vector larger, results in a much higher quality tesselation
 		//  when it renders, it shrinks to bounds, so we kinda want to scale this to
 		//  the width/height
-		var VectorScalar = 5;
+		var VectorScalar = 1;
 		var RasterisedTextureScalar = 1;
+		
 		
 		var RenderRect = new Rect(0,0,Width*VectorScalar,Height*VectorScalar);
 		var Frame = Anim.Render(0.0f,RenderRect,ScaleMode.ScaleToFit);
@@ -161,13 +198,24 @@ public class LottieAsset : ScriptableObject
 			var RenderShader = Shader.Find("PopLottie/LottieSdfPath");
 			Material RenderMat = new Material(RenderShader);
 			MeshAndUniforms.ApplyUniforms(RenderMat);
+			
+			
 			//	gr: for some reason, this doesn't work with icons...
 			var cmdBuf = new UnityEngine.Rendering.CommandBuffer();
 			cmdBuf.SetRenderTarget(rt);
+			
+			//cmdBuf.ClearRenderTarget(true, true, Color.magenta );
+			//cmdBuf.SetViewport( new Rect(0,Height*0.1f,Width,Height) );
+			
 			cmdBuf.ClearRenderTarget(true, true, ClearColour );
 			cmdBuf.DrawMesh(Mesh, Transform, RenderMat, 0);
 			Graphics.ExecuteCommandBuffer(cmdBuf);
-			
+			/*
+			var RenderParams = new RenderParams(RenderMat);
+			GL.Clear(true, true, Color.red);
+			Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
+			//Graphics.DrawMesh(Mesh,Transform,RenderMat,0);
+			*/
 			//var RenderParams = new RenderParams(mat);
 			//Graphics.RenderMesh(RenderParams,Mesh,0,Transform);
 			//Graphics.DrawMesh(Mesh,Transform,mat,0);
@@ -221,6 +269,7 @@ public class LottieAsset : ScriptableObject
 		{
 			RenderTexture.active = oldActive;
 			RenderTexture.ReleaseTemporary(rt);
+			Debug.LogException(e);
 			return null;
 		}
 
@@ -303,6 +352,7 @@ public class LottieAsset : ScriptableObject
 public class LottieAssetEditor : UnityEditor.Editor
 {
 	//  gr: this seems to be the icon!
+	//	w x h  = 128x128
 	public override Texture2D RenderStaticPreview(string assetPath, Object[] subAssets, int width, int height)
 	{   
 		var Asset = target as LottieAsset;
@@ -339,18 +389,39 @@ public class MyPreview : ObjectPreview
 	public override void OnPreviewGUI(Rect r, GUIStyle background)
 	{
 		base.OnPreviewGUI(r, background);
+		
+		var TextStyle = new GUIStyle(GUI.skin.box);
+		TextStyle.normal.textColor = Color.white;
+		TextStyle.normal.background = Texture2D.blackTexture;
 		try
 		{
 			var Asset = target as LottieAsset;
 			if ( Asset == null )
 				throw new Exception("Null asset");
 
+			int ElementHeight = 20;
+			int ElementMargin = 5;
+			int ElementWidth = (int)Mathf.Min( r.width, 200 ) - ElementMargin - ElementMargin;
+
 			var Preview = Asset.GetPreview( (int)r.width, (int)r.height );
 			GUI.DrawTexture(r, Preview, ScaleMode.ScaleToFit);
+			
+			var ElementRect = r;
+			ElementRect.height = ElementHeight;
+			ElementRect.width = ElementWidth;
+			ElementRect.y += ElementMargin;
+			ElementRect.x += ElementMargin;
+			
+			GUI.Label( ElementRect, $"Preview; {Preview.width}x{Preview.height}", TextStyle );
+			ElementRect.y += ElementRect.height + ElementMargin;
+			
+			if ( GUI.Button(ElementRect, "Clear Preview Cache") )
+				Asset.ClearPreviewCache();
+			ElementRect.y += ElementRect.height + ElementMargin;
 		}
 		catch(Exception e)
 		{
-			GUI.Box( r, e.Message, GUIStyle.none );
+			GUI.Box( r, e.Message, TextStyle );
 		}
 	}
 }

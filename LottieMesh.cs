@@ -12,12 +12,6 @@ namespace PopLottie
 		{
 			var Painter = new UnityEngine.UIElements.Painter2D();
 		
-			//  making the vector larger, results in a much higher quality tesselation
-			//  when it renders, it shrinks to bounds, so we kinda want to scale this to
-			//  the width/height
-			var VectorScalar = 5;
-			var RasterisedTextureScalar = 1;
-			
 			Frame.Render(Painter);
 			if ( RenderDebug )
 				Frame.RenderDebug(Painter);
@@ -123,7 +117,7 @@ public class LottieMesh : MonoBehaviour
 {
 	public LottieAsset			animationAsset;
 	(PopLottie.Animation,int)?	animationCacheAndHash;
-	PopLottie.Animation			animation => GetCachedAnimation();
+	new PopLottie.Animation		animation => GetCachedAnimation();
 	
 	Shader					shader => Shader.Find("Unlit/VectorUI");
 	Material				material => new Material(shader);

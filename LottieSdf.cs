@@ -30,7 +30,7 @@ public class LottieSdf : MonoBehaviour
 
 	public LottieAsset			animationAsset;
 	(PopLottie.Animation,int)?	animationCacheAndHash;
-	PopLottie.Animation			animation => GetCachedAnimation();
+	new PopLottie.Animation		animation => GetCachedAnimation();	//	new to stop warning as MonoBehaviour already has a .animation member
 	
 	public Shader			shader;
 	//Material				material => new Material(shader);
