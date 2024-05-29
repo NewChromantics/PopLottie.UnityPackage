@@ -228,6 +228,9 @@ namespace PopLottie
 					Points.AddRange( GetCornerBeziers( new Vector2(rin,t), tr, new Vector2(r,tin) ) );
 					Points.AddRange( GetCornerBeziers( new Vector2(r,bin), br, new Vector2(rin,b) ) );
 					Points.AddRange( GetCornerBeziers( new Vector2(lin,b), bl,  new Vector2(l,bin) ) );
+					
+					//	close path
+					Points.Add( Points[0] );
 					return new Path(Points);
 				}
 				else
@@ -236,7 +239,11 @@ namespace PopLottie
 					var tr = new BezierPoint( new Vector2(r,t) );
 					var br = new BezierPoint( new Vector2(r,b) );
 					var bl = new BezierPoint( new Vector2(l,b) );
-					var Points = new BezierPoint[]{tl,tr,br,bl};
+					var Points = new BezierPoint[]
+					{
+						tl,tr,br,bl,
+						tl//	close path
+					};
 					return new Path(Points);
 				}
 			}

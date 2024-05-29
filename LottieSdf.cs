@@ -269,6 +269,12 @@ public class LottieSdf : MonoBehaviour
 						AddPathPoint( ControlOut );
 						LastIndex = AddPathPoint(End);
 					}
+					/*
+					//	close path
+					AddPathPoint( Path.BezierPath[Path.BezierPath.Length-1].End );
+					AddPathPoint( Path.BezierPath[0].End );
+					LastIndex = AddPathPoint( Path.BezierPath[0].End );
+					*/
 					int Countb = (LastIndex - FirstIndexb) + 1;
 					NewPathMetas.Add( GetPathMeta( PATH_TYPE_BEZIER, FirstIndexb, Countb ) );
 				}
