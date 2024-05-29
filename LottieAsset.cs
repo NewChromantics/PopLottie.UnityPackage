@@ -187,7 +187,7 @@ public class LottieAsset : ScriptableObject
 	static Texture2D RenderWithSdf(PopLottie.RenderCommands.AnimationFrame Frame,int Width,int Height,float VectorScale)
 	{
 		float ZSpacing = 0.0001f;
-		var MeshAndUniforms = LottieSdf.GenerateLayerMesh( Frame, false, ZSpacing );
+		var MeshAndUniforms = LottieSdf.GenerateLayerMesh( Frame, Flip:false, ZSpacing, IncludeDebug:false );
 
 		void Render(RenderTexture rt,Color ClearColour)
 		{

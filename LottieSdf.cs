@@ -103,7 +103,7 @@ public class LottieSdf : MonoBehaviour
 	
 		//	gr: don't really wanna do this on cpu! and instead see if we can
 		//		dump the values into buffers for a shader
-		var meshAndPathDatas = GenerateLayerMesh(Frame,Flip:true,this.ZSpacing);
+		var meshAndPathDatas = GenerateLayerMesh(Frame,Flip:true,this.ZSpacing, RenderDebug );
 		var Mesh = meshAndPathDatas.Mesh;
 		var VectorToLocalTransform = Matrix4x4.identity;
 	
@@ -135,7 +135,7 @@ public class LottieSdf : MonoBehaviour
 	
 	//	make a mesh with quads for every shape/layer
 	//	todo: also need uniforms for instructions, colours etc for the shapes
-	static public MeshAndUniforms GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip,float ZSpacing)
+	static public MeshAndUniforms GenerateLayerMesh(PopLottie.RenderCommands.AnimationFrame Frame,bool Flip,float ZSpacing,bool IncludeDebug)
 	{
 		var Indexes = new List<int>();
 
@@ -287,6 +287,19 @@ public class LottieSdf : MonoBehaviour
 
 
 		var z = 0;
+		
+		
+		if ( IncludeDebug )
+		{
+			//	draw canvas
+			var CanvasPath = RenderCommands.Path.CreateRect( Frame.CanvasRect.center, Frame.CanvasRect.size );
+			var (ShapeMeta,Bounds) = WritePaths( new[] { CanvasPath} );
+			var DebugFill = new Color(1,0,1,0.3f);
+			AddQuad( Bounds, ShapeMeta, z, DebugFill, null, 0 );
+			z++;
+		}
+		
+		
 		var RenderFirstToLast = true;
 		var Shapes = RenderFirstToLast ? Frame.Shapes : Frame.Shapes.ToArray().Reverse();
 		foreach (var Shape in Shapes)

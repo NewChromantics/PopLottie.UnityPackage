@@ -184,6 +184,7 @@ namespace PopLottie
 				this.TextPaths = new []{Text};
 			}
 			
+			
 			public static Path CreateRect(Vector2 Center,Vector2 Size,float? CornerRadius=null)
 			{
 				if ( CornerRadius.HasValue && CornerRadius.Value <= float.Epsilon )
