@@ -51,7 +51,7 @@ public class LottieSdf : MonoBehaviour
 	public CanvasToWorldAlignment	Alignment = CanvasToWorldAlignment.Center;
 	[Range(0.001f,0.1f)]
 	public float			ZSpacing = 0.001f;
-	public bool				RenderFirstToLast = true;
+	//public bool				RenderFirstToLast = true;
 	
 	[Range(0,20)]
 	public float			EditorPreviewTimeSecs = 0;
@@ -191,7 +191,7 @@ public class LottieSdf : MonoBehaviour
 			var StrokeColour = StrokeColourMaybe ?? ClearColourB;
 			
 			var VertexIndex = LocalPositions.Count;
-			float zf = z * ZSpacing;
+			float zf = z * -ZSpacing;
 			var tl = new Vector3( rect.xMin, rect.yMin*FlipMult, zf );
 			var tr = new Vector3( rect.xMax, rect.yMin*FlipMult, zf );
 			var br = new Vector3( rect.xMax, rect.yMax*FlipMult, zf );
