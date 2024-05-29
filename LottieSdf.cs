@@ -28,6 +28,12 @@ public class LottieSdf : MonoBehaviour
 	const int PATH_DATAROW_META = 0;
 	const int PATH_DATAROW_POSITION = 1;
 
+	public enum CanvasToWorldAlignment
+	{
+		Center,
+		BottomLeft,
+	}
+
 	public LottieAsset			animationAsset;
 	(PopLottie.Animation,int)?	animationCacheAndHash;
 	new PopLottie.Animation		animation => GetCachedAnimation();	//	new to stop warning as MonoBehaviour already has a .animation member
@@ -42,6 +48,7 @@ public class LottieSdf : MonoBehaviour
 	public bool				RenderDebug = false;
 	[Range(0.01f,10)]
 	public float			WorldSize = 1;
+	public CanvasToWorldAlignment	Alignment = CanvasToWorldAlignment.Center;
 	[Range(0.001f,0.1f)]
 	public float			ZSpacing = 0.001f;
 	public bool				RenderFirstToLast = true;
@@ -108,7 +115,7 @@ public class LottieSdf : MonoBehaviour
 		var VectorToLocalTransform = Matrix4x4.identity;
 		
 		//	alignment here
-		if ( true )//Center )
+		if ( Alignment == CanvasToWorldAlignment.Center )
 		{
 			var x = -Frame.CanvasRect.width / 2;
 			var y = -Frame.CanvasRect.height / 2;
