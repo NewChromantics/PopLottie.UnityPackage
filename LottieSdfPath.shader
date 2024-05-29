@@ -2,7 +2,7 @@ Shader "PopLottie/LottieSdfPath"
 {
 	Properties
 	{
-		Debug_StrokeScale ("Debug_StrokeScale", Range(1.0, 20.0)) = 1.0
+		Debug_StrokeScale ("Debug_StrokeScale", Range(0.0, 20.0)) = 1.0
 		Debug_ForceStrokeMin ("Debug_ForceStrokeMin", Range(0.0, 1.0)) = 0.0
 		Debug_AddStrokeAlpha ("Debug_AddStrokeAlpha", Range(0.0, 1.0)) = 0.0
 		Debug_DistanceRepeats("Debug_DistanceRepeats", Range(0.0, 20.0)) = 0.0
@@ -44,11 +44,13 @@ Shader "PopLottie/LottieSdfPath"
 			{
 				float4 ClipPosition : SV_POSITION;
 				float2 LocalPosition : TEXCOORD0;
+
 				float4 OutsideColour : TEXCOORD1;
-				float4 FillColour : TEXCOORD2;
-				float4 StrokeColour : TEXCOORD3;
-				float StrokeWidth : TEXCOORD4;
-				float4 ShapeMeta : TEXCOORD5;
+				float4 StrokeOutsideColour : TEXCOORD2;
+				float4 StrokeInsideColour : TEXCOORD3;
+				float4 FillColour : TEXCOORD4;
+				float StrokeWidth : TEXCOORD5;
+				float4 ShapeMeta : TEXCOORD6;
 			};
 
 			#define ENABLE_DEBUG_INVISIBLE	false
@@ -127,11 +129,11 @@ float Debug_DistanceRepeats;
 				o.ClipPosition = UnityObjectToClipPos(v.LocalPosition);
 				o.LocalPosition = v.LocalPosition;
 				o.FillColour = v.FillColour;
-				o.StrokeColour = v.StrokeColour;
-				o.StrokeColour.w += Debug_AddStrokeAlpha;
-				o.StrokeWidth = v.StrokeWidth.x;
+				o.StrokeOutsideColour = v.StrokeColour;
+				o.StrokeOutsideColour.w += Debug_AddStrokeAlpha;
+				o.StrokeWidth = max( Debug_ForceStrokeMin, v.StrokeWidth.x );
+				o.StrokeWidth *= Debug_StrokeScale;
 				o.ShapeMeta = v.ShapeMeta;
-				o.StrokeWidth = Debug_ForceStrokeMin + (o.StrokeWidth * Debug_StrokeScale);
 
 				//	correct colours for antialias blending
 				//	need to AA between
@@ -139,18 +141,22 @@ float Debug_DistanceRepeats;
 				//		stroke & fill
 				//	to avoid haloing, invisible layers need to use next layer's rgb
 				//	this logic will break a bit if we have neither stroke nor fill.
-				bool HasStroke = o.StrokeWidth > 0 && o.StrokeColour.w > 0;
+				bool HasStroke = o.StrokeWidth > 0 && o.StrokeOutsideColour.w > 0;
 				bool HasFill = o.FillColour.w > 0;
 				float4 RemoveAlpha = float4(1,1,1,0);
-				float4 FillColour = HasFill ? o.FillColour : o.StrokeColour * RemoveAlpha;
-				float4 StrokeColour = HasStroke ? o.StrokeColour : o.FillColour * RemoveAlpha;
+				float4 FillColour = HasFill ? o.FillColour : o.StrokeOutsideColour * RemoveAlpha;
+				float4 StrokeColour = HasStroke ? o.StrokeOutsideColour : o.FillColour * RemoveAlpha;
 				float4 OutsideColour = StrokeColour * RemoveAlpha;
 				o.OutsideColour = OutsideColour;
 				o.FillColour = FillColour;
-				o.StrokeColour = StrokeColour;
+				o.StrokeOutsideColour = StrokeColour;
+				float AlphaBlend = o.StrokeOutsideColour.w;
+				o.StrokeInsideColour = (o.StrokeOutsideColour * AlphaBlend) + (o.FillColour * (1-AlphaBlend) );
+				
 				if ( DEBUG_BEZIER_EDGES /*&& ENABLE_ANTIALIAS */)
 				{
-					o.StrokeColour = float4(1,0,1,1);
+					o.StrokeOutsideColour = float4(1,0,1,1);
+					o.StrokeInsideColour = float4(1,0,1,1);
 					o.StrokeWidth = 0.01;
 				}
 
@@ -719,19 +725,28 @@ float angle(float2 p0, float2 p1)
 					if ( Distance > HalfStrokeWidth )
 					{
 						return OUTSIDE_COLOUR;
-					}	
+					}
 
-					//	within stroke
+					//	outer stroke (stroke overlapping outside)
+					if ( Distance >=0 )
+						return Input.StrokeOutsideColour;
+
+					//	inner stroke (stroke overlapping fill)
 					if ( Distance > -HalfStrokeWidth )
-						return Input.StrokeColour;
+						return Input.StrokeInsideColour;
 
 					//	within fill (typically negative number)
 					return Input.FillColour;
 				}
 				
 				float4 Colour = Input.OutsideColour;
+
+				//	gr: this also needs to blend, a semitransparent stroke should overlap the fill
+				//		so this should really blend fill to edge, then put stroke on top... antialiased
+
 				//	outside -> outer stroke
-				Colour = Antialias( Colour, Input.StrokeColour, HalfStrokeWidth, Distance );
+				Colour = Antialias( Colour, Input.StrokeOutsideColour, HalfStrokeWidth, Distance );
+				Colour = Antialias( Colour, Input.StrokeInsideColour, 0, Distance );
 				//	inner stroke -> fill
 				Colour = Antialias( Colour, Input.FillColour, -HalfStrokeWidth, Distance );
 				

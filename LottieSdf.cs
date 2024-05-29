@@ -171,7 +171,7 @@ public class LottieSdf : MonoBehaviour
 				return;
 			var rect = new Rect( -1000,-1000,5000,5000 );//bounds.Value;
 			var ClearColourA = new Color(0,1,1,0);
-			var ClearColourB = new Color(1,1,0,0);
+			var ClearColourB = new Color(0,0,0,0);
 			var FillColour = FillColourMaybe ?? ClearColourA;
 			var StrokeColour = StrokeColourMaybe ?? ClearColourB;
 			
