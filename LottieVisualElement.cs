@@ -113,6 +113,12 @@ namespace PopLottie
 
 		void LoadAnimation()
 		{
+			//	if no filename, dont throw errors
+			if ( String.IsNullOrEmpty(resourceFilename) )
+			{
+				Dispose();
+				return;
+			}
 			var Asset = LoadAnimationAsset(resourceFilename);
 			LoadAnimation(Asset);
 		}
