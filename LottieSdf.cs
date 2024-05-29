@@ -106,6 +106,14 @@ public class LottieSdf : MonoBehaviour
 		var meshAndPathDatas = GenerateLayerMesh(Frame,Flip:true,this.ZSpacing, RenderDebug );
 		var Mesh = meshAndPathDatas.Mesh;
 		var VectorToLocalTransform = Matrix4x4.identity;
+		
+		//	alignment here
+		if ( true )//Center )
+		{
+			var x = -Frame.CanvasRect.width / 2;
+			var y = -Frame.CanvasRect.height / 2;
+			VectorToLocalTransform = Matrix4x4.Translate( new Vector3(x,y) );
+		}
 	
 		var RenderParams = new RenderParams(material);
 		meshAndPathDatas.ApplyUniforms(material);
@@ -220,7 +228,9 @@ public class LottieSdf : MonoBehaviour
 		{
 			var Index = PathPoints.Count;
 			if ( ApplyFlip ) 
-				Position.y *= FlipMult; 
+			{
+				Position.y = Frame.CanvasRect.yMax - Position.y;
+			} 
 			PathPoints.Add(new Vector4(Position.x, Position.y, 0, 0) );
 			return Index;
 		}
@@ -328,6 +338,9 @@ public class LottieSdf : MonoBehaviour
 		Mesh.SetUVs(1,StrokeWidths);
 		Mesh.SetUVs(2,ShapeMetas);
 		Mesh.SetTriangles(Indexes,0,true);
+		
+		Mesh.bounds = new Bounds( Frame.CanvasRect.center, Frame.CanvasRect.size );
+		//Mesh.RecalculateBounds();
 		
 		var meshAndUniforms = new MeshAndUniforms();
 		meshAndUniforms.Mesh = Mesh;
