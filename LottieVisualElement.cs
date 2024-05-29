@@ -35,7 +35,7 @@ namespace PopLottie
 			set
 			{
 				ResourceFilename = value;
-				LoadAnimation();
+				LoadAnimationNoThrow();	//	bad things happen if we throw here
 				MarkDirtyRepaint();
 			}
 		}
@@ -97,6 +97,19 @@ namespace PopLottie
 			
 			throw new Exception($"Failed to find text-Asset(.json) nor AnimationAsset(.lottie) resource at {Filename} (Do not include extension)");
 		}
+		
+		void LoadAnimationNoThrow()
+		{
+			try
+			{
+				LoadAnimation();
+			}
+			catch(Exception e)
+			{
+				Debug.LogException(e);
+			}
+		}
+
 
 		void LoadAnimation()
 		{
@@ -259,7 +272,8 @@ namespace PopLottie
 		
 		void OnAttached()
 		{
-			LoadAnimation();
+			//	bad things happen to UIToolkit if we throw here
+			LoadAnimationNoThrow();
 		}
 		void OnDetached()
 		{
