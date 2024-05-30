@@ -168,7 +168,6 @@ public class LottieSdf : MonoBehaviour
 		//	uniform data
 		var PathMetas = new List<Vector4>();
 		var PathPoints = new List<Vector4>();
-		var FlipMult = Flip ? -1 : 1;
 		
 		Vector4 GetPathMeta(int PathType,int FirstPoint,int PointCount)
 		{
@@ -192,10 +191,10 @@ public class LottieSdf : MonoBehaviour
 			
 			var VertexIndex = LocalPositions.Count;
 			float zf = z * -ZSpacing;
-			var tl = new Vector3( rect.xMin, rect.yMin*FlipMult, zf );
-			var tr = new Vector3( rect.xMax, rect.yMin*FlipMult, zf );
-			var br = new Vector3( rect.xMax, rect.yMax*FlipMult, zf );
-			var bl = new Vector3( rect.xMin, rect.yMax*FlipMult, zf );
+			var tl = new Vector3( rect.xMin, rect.yMin, zf );
+			var tr = new Vector3( rect.xMax, rect.yMin, zf );
+			var br = new Vector3( rect.xMax, rect.yMax, zf );
+			var bl = new Vector3( rect.xMin, rect.yMax, zf );
 			LocalPositions.Add(tl);
 			LocalPositions.Add(tr);
 			LocalPositions.Add(br);
@@ -234,7 +233,7 @@ public class LottieSdf : MonoBehaviour
 		int AddPathPoint(Vector2 Position,bool ApplyFlip=true)
 		{
 			var Index = PathPoints.Count;
-			if ( ApplyFlip ) 
+			if ( ApplyFlip && Flip )
 			{
 				Position.y = Frame.CanvasRect.yMax - Position.y;
 			} 

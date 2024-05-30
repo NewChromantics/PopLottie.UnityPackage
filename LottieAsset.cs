@@ -187,13 +187,24 @@ public class LottieAsset : ScriptableObject
 	static Texture2D RenderWithSdf(PopLottie.RenderCommands.AnimationFrame Frame,int Width,int Height,float VectorScale)
 	{
 		float ZSpacing = 0.0001f;
-		var MeshAndUniforms = LottieSdf.GenerateLayerMesh( Frame, Flip:false, ZSpacing, IncludeDebug:false );
+		var MeshAndUniforms = LottieSdf.GenerateLayerMesh( Frame, Flip:false, ZSpacing, IncludeDebug:true );
 
 		void Render(RenderTexture rt,Color ClearColour)
 		{
 			//var MeshAndTransform = PopLottie.AnimationMesh.GetMesh(Frame,FrameQualityScalar,false);
 			var Mesh = MeshAndUniforms.Mesh;
-			var Transform = Matrix4x4.Scale( new Vector3(1/VectorScale,1/VectorScale,1));
+			
+			var Transform = Matrix4x4.identity;
+			Transform *= Matrix4x4.Scale( new Vector3(1/VectorScale,1/VectorScale,1));
+			
+			var AlignToCenter = false;
+			if ( AlignToCenter )
+			{
+				var x = -Frame.CanvasRect.width / 2;
+				var y = -Frame.CanvasRect.height / 2;
+				Transform *= Matrix4x4.Translate( new Vector3(x,y) );
+			}
+			
 			
 			var RenderShader = Shader.Find("PopLottie/LottieSdfPath");
 			Material RenderMat = new Material(RenderShader);
