@@ -49,7 +49,7 @@ public class LottieSdf : MonoBehaviour
 	[Range(0.01f,10)]
 	public float			WorldSize = 1;
 	public CanvasToWorldAlignment	Alignment = CanvasToWorldAlignment.Center;
-	[Range(0.001f,0.1f)]
+	[Range(0.0001f,0.1f)]
 	public float			ZSpacing = 0.001f;
 	//public bool				RenderFirstToLast = true;
 	
