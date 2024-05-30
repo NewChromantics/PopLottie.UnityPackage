@@ -95,7 +95,7 @@ namespace PopLottie
 				return animationAsset.Animation;
 			}
 			
-			throw new Exception($"Failed to find text-Asset(.json) nor AnimationAsset(.lottie) resource at {Filename} (Do not include extension)");
+			throw new Exception($"Failed to find text-Asset(.json) nor AnimationAsset(.lottie) resource at '{Filename}' (Do not include extension)");
 		}
 		
 		void LoadAnimationNoThrow()
@@ -156,7 +156,7 @@ namespace PopLottie
 			UxmlStringAttributeDescription resourceFilenameAttribute = new()
 			{
 				name = "resource-Filename",
-				defaultValue = "AnimationWithoutExtension"
+				defaultValue = ""
 			};
 			UxmlUnsignedIntAttributeDescription redrawIntervalMillisecondsAttribute = new()
 			{

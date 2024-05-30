@@ -113,28 +113,62 @@ namespace VectorImageHack
 [Serializable]
 public class LottieAsset : ScriptableObject
 {
-	//public PopLottie.Animation  Animation;  //  cache
-	public PopLottie.Animation	Animation => PopLottie.Animation.Parse(Json);
+	public PopLottie.Animation	Animation => GetCachedAnimation();
 	public string				Json;
 	
 	//	using this private variable means it wont be serialised, but will be cached during editor session
 	//	reimport asset to wipe it
 	Texture2D					ThumbnailCache;
+	int							ThumbnailCacheFrameMs = 0;
+	//	gr: can't save this (public) as it doesn't seem to serialise properly
+	PopLottie.Animation			AnimationCache;
+	
+	PopLottie.Animation GetCachedAnimation()
+	{
+		if ( AnimationCache == null )
+		{
+			AnimationCache = PopLottie.Animation.Parse(Json);
+		}
+		return AnimationCache;
+	}
 	
 	public void ClearPreviewCache()
 	{
 		ThumbnailCache = null;
 	}
 	
-	public Texture2D            GetPreview(int Width,int Height)
+	public TimeSpan? GetDuration()
+	{
+		try
+		{
+			if ( Animation.IsStatic )
+				return null;
+			return Animation.Duration;
+		}
+		catch//(Exception e)
+		{
+			return TimeSpan.Zero;
+		}
+	}
+	
+	public int GetPreviewCacheFrameMs()
+	{
+		return ThumbnailCacheFrameMs;
+	}
+	
+	public Texture2D GetPreview(int Width,int Height,int FrameMs)
 	{
 		int MinSize = 400;
 
 		//	clear old caches if we changed the min size
 		//	gr: ThumbnaCache?.width here throws because variable is null??
 		if ( ThumbnailCache != null )
-			if ( ThumbnailCache?.width < MinSize || ThumbnailCache?.height < MinSize )
+		{
+			var SizeChanged = ThumbnailCache?.width < MinSize || ThumbnailCache?.height < MinSize;
+			var TimeChanged = ThumbnailCacheFrameMs!=FrameMs; 
+			if ( TimeChanged || SizeChanged )
 				ClearPreviewCache(); 
+		}
 		
 		if ( ThumbnailCache != null )
 		{
@@ -146,12 +180,13 @@ public class LottieAsset : ScriptableObject
 		//	just always render a sensible size
 		Width = Mathf.Max(MinSize,Width);
 		Height = Mathf.Max(MinSize,Height);
-		ThumbnailCache = RenderThumbnail(Width,Height);
+		ThumbnailCache = RenderThumbnail(Width,Height, TimeSpan.FromMilliseconds(FrameMs) );
+		ThumbnailCacheFrameMs = FrameMs;
 		Debug.Log($"Rendering cache of {this.name} {ThumbnailCache.width}x{ThumbnailCache.height}");
 		return ThumbnailCache;
 	}
 
-	Texture2D			RenderThumbnail(int Width,int Height)
+	Texture2D			RenderThumbnail(int Width,int Height,TimeSpan FrameTime)
 	{
 		//  render the asset to a painter to get a vector image
 		//  then rasterise the vector
@@ -164,7 +199,7 @@ public class LottieAsset : ScriptableObject
 		
 		
 		var RenderRect = new Rect(0,0,Width*VectorScalar,Height*VectorScalar);
-		var Frame = Anim.Render(0.0f,RenderRect,ScaleMode.ScaleToFit);
+		var Frame = Anim.Render(FrameTime,RenderRect,ScaleMode.ScaleToFit);
 
 		//	render with sdf
 		bool RenderWithSdfMethod = true;
@@ -367,7 +402,7 @@ public class LottieAssetEditor : UnityEditor.Editor
 	public override Texture2D RenderStaticPreview(string assetPath, Object[] subAssets, int width, int height)
 	{   
 		var Asset = target as LottieAsset;
-		var Texture = Asset.GetPreview(width,height);
+		var Texture = Asset.GetPreview(width,height, FrameMs:0);
 		return Texture;
 	}
 	
@@ -414,21 +449,36 @@ public class MyPreview : ObjectPreview
 			int ElementMargin = 5;
 			int ElementWidth = (int)Mathf.Min( r.width, 200 ) - ElementMargin - ElementMargin;
 
-			var Preview = Asset.GetPreview( (int)r.width, (int)r.height );
-			GUI.DrawTexture(r, Preview, ScaleMode.ScaleToFit);
-			
 			var ElementRect = r;
 			ElementRect.height = ElementHeight;
 			ElementRect.width = ElementWidth;
-			ElementRect.y += ElementMargin;
+			ElementRect.y = r.yMax - ElementHeight - ElementMargin;
 			ElementRect.x += ElementMargin;
 			
-			GUI.Label( ElementRect, $"Preview; {Preview.width}x{Preview.height}", TextStyle );
-			ElementRect.y += ElementRect.height + ElementMargin;
+			int FrameMs = Asset.GetPreviewCacheFrameMs();
+			
+			if ( Asset.GetDuration() is TimeSpan Duration )
+			{
+				float FrameSecs = GUI.HorizontalSlider( ElementRect, FrameMs/1000f, 0, (float)Duration.TotalSeconds );
+				FrameMs = (int)(FrameSecs * 1000f);
+				ElementRect.y -= ElementRect.height + ElementMargin;
+			
+				GUI.Label( ElementRect, $"{FrameSecs:0.00}/{Duration.TotalSeconds:0.00} secs", TextStyle );
+				ElementRect.y -= ElementRect.height + ElementMargin;
+			}
+			else
+			{
+				GUI.Label( ElementRect, $"(Static)", TextStyle );
+				ElementRect.y -= ElementRect.height + ElementMargin;
+			}
 			
 			if ( GUI.Button(ElementRect, "Clear Preview Cache") )
 				Asset.ClearPreviewCache();
-			ElementRect.y += ElementRect.height + ElementMargin;
+			ElementRect.y -= ElementRect.height + ElementMargin;
+			
+			var PreviewTexture = Asset.GetPreview( (int)r.width, (int)r.height, FrameMs );
+			GUI.DrawTexture(r, PreviewTexture, ScaleMode.ScaleAndCrop);
+			
 		}
 		catch(Exception e)
 		{
