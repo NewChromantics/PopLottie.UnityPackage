@@ -321,6 +321,15 @@ float Debug_DistanceRepeats;
 
 			float2 GetBezierPoint(float2 a,float2 b,float2 c,float2 d,float t)
 			{
+				/*	gr: this works, but is actually a little slower in practise!
+					return (1 - t) * (1 - t) * (1 - t) * a
+					+
+					3 * (1 - t) * (1 - t) * t * b
+					+
+					3 * (1 - t) * t * t * c
+					+
+					t * t * t * d;
+				*/
 				//	brute force version for readability
 				//	todo: use the common optimised version (already in c#! GetBezierValue()
 				float2 ab = lerp( a, b, t );
@@ -407,22 +416,10 @@ float Debug_DistanceRepeats;
 				return DistanceAndWinding;
 			}
 
-			float DistanceToCubicMix(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End)
-			{
-				float abc = DistanceToQuadratic( Position, Start, ControlPointIn, ControlPointOut );
-				//float bcd = DistanceToQuadratic( Position, ControlPointIn, ControlPointOut, End );
-				//return bcd;
-				//return min( abc, bcd );
-				float abd = DistanceToQuadratic( Position, Start, ControlPointIn, End );
-				return abc;
-				return abd;
-			}
-
 			Distance_t DistanceToCubic(float2 Position,float2 Start,float2 ControlPointIn,float2 ControlPointOut,float2 End,float CurrentSign)
 			{
 				return DistanceToCubic_StepAsPolygon( Position, Start, ControlPointIn, ControlPointOut, End, CurrentSign)
 				//return DistanceToCubic_Step( Position, Start, ControlPointIn, ControlPointOut, End)
-				//		- Debug_BezierDistanceOffset
 				;
 			}
 
