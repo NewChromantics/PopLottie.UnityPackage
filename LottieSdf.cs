@@ -141,8 +141,13 @@ public class LottieSdf : MonoBehaviour
 		public void				ApplyUniforms(Material material)
 		{
 			//	gr: pad out this array to stop unity baking the max size
-			PathMetas.AddRange( new Vector4[MAX_PATHMETAS-PathMetas.Count] );
-			PathPoints.AddRange( new Vector4[MAX_PATHPOINTS-PathPoints.Count] );
+			if ( PathMetas.Count < MAX_PATHMETAS )
+				PathMetas.AddRange( new Vector4[MAX_PATHMETAS-PathMetas.Count] );
+			if ( PathPoints.Count < MAX_PATHPOINTS )
+				PathPoints.AddRange( new Vector4[MAX_PATHPOINTS-PathPoints.Count] );
+			if ( PathMetas.Count > MAX_PATHMETAS || PathPoints.Count > MAX_PATHPOINTS )
+				Debug.LogWarning($"Path bigger than supported; Paths {PathMetas.Count}/{MAX_PATHMETAS}, points {PathPoints.Count}/{MAX_PATHPOINTS}");
+
 			material.SetVectorArray("PathMetas",PathMetas);
 			material.SetVectorArray("PathPoints",PathPoints);
 		}
