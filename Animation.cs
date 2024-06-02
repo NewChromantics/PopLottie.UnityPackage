@@ -39,6 +39,7 @@ namespace PopLottie
 			switch (Type)
 			{
 				case AnimationFileType.Lottie:	return new LottieAnimation(FileContents);
+				case AnimationFileType.Svg:		return new SvgAnimation(FileContents);
 				default:
 					throw new Exception($"AllocateAnimation() Unhandled file type {Type}");
 			}

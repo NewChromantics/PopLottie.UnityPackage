@@ -1572,25 +1572,13 @@ namespace PopLottie
 		{
 			lottie = default;
 		}
-			
-		public override RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
+		
+		static public (Transformer,Rect) DoRootTransform(Rect AssetCanvasRect,Rect ContentRect,ScaleMode scaleMode)
 		{
-			//Debug.Log($"Time = {Time.TotalSeconds} ({lottie.FirstKeyframe.TotalSeconds}...{lottie.LastKeyframe.TotalSeconds})");
-
-			//	work out the placement of the canvas - all the shapes are in THIS canvas space
-			Rect LottieCanvasRect = new Rect(0,0,lottie.w,lottie.h);
-
-			var OutputFrame = new RenderCommands.AnimationFrame();
-			void AddRenderShape(RenderCommands.Shape NewShape)
-			{
-				OutputFrame.AddShape(NewShape);
-			}
-
-			
 			//	scale-to-canvas transformer
 			float ExtraScale = 1;	//	for debug zooming
-			var ScaleToCanvasWidth = (ContentRect.width / lottie.w)*ExtraScale;
-			var ScaleToCanvasHeight = (ContentRect.height / lottie.h)*ExtraScale;
+			var ScaleToCanvasWidth = (ContentRect.width / AssetCanvasRect.width)*ExtraScale;
+			var ScaleToCanvasHeight = (ContentRect.height / AssetCanvasRect.height)*ExtraScale;
 			bool Stretch = scaleMode == ScaleMode.StretchToFill;
 			
 			//	todo: handle scale + crop (scale up)
@@ -1605,14 +1593,33 @@ namespace PopLottie
 			//	gr: work this out properly....
 			bool CenterAlign = true;
 			Transformer RootTransformer = new Transformer( ContentRect.min, Vector2.zero, ScaleToCanvas, 0f );
-			OutputFrame.CanvasRect = RootTransformer.LocalToWorldPosition(LottieCanvasRect);
+			var OutputCanvasRect = RootTransformer.LocalToWorldPosition(AssetCanvasRect);
 			if ( CenterAlign )
 			{
-				var Centering = (ContentRect.max - OutputFrame.CanvasRect.max)/2f;
+				var Centering = (ContentRect.max - OutputCanvasRect.max)/2f;
 				RootTransformer = new Transformer( ContentRect.min + Centering, Vector2.zero, ScaleToCanvas, 0f );
 				//	re-write canvas to make sure this is correct
-				OutputFrame.CanvasRect = RootTransformer.LocalToWorldPosition(LottieCanvasRect);
+				OutputCanvasRect = RootTransformer.LocalToWorldPosition(AssetCanvasRect);
 			}
+			return (RootTransformer,OutputCanvasRect);
+		}
+		
+		public override RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
+		{
+			//Debug.Log($"Time = {Time.TotalSeconds} ({lottie.FirstKeyframe.TotalSeconds}...{lottie.LastKeyframe.TotalSeconds})");
+			//	work out the placement of the canvas - all the shapes are in THIS canvas space
+			Rect LottieCanvasRect = new Rect(0,0,lottie.w,lottie.h);
+
+			var (RootTransformer,OutputCanvasRect) = DoRootTransform( LottieCanvasRect, ContentRect, scaleMode );
+
+			var OutputFrame = new RenderCommands.AnimationFrame();
+			OutputFrame.CanvasRect = OutputCanvasRect;
+
+			void AddRenderShape(RenderCommands.Shape NewShape)
+			{
+				OutputFrame.AddShape(NewShape);
+			}
+			
 			
 			List<RenderCommands.Path> CurrentPaths = new();
 			void BeginShape()
@@ -1818,7 +1825,7 @@ namespace PopLottie
 				if ( !Layer.IsVisible(Frame) )
 					continue;
 				
-				Transformer ParentTransformer = RootTransformer;	
+				Transformer ParentTransformer = RootTransformer;
 				if ( Layer.parent.HasValue )
 				{
 					var ParentLayers = lottie.layers.Where( l => l.LayerId == Layer.parent.Value ).ToArray();

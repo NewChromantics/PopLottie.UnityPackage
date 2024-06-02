@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - AntialiasRadius: 0.00342
-    - BezierArcSteps: 10
+    - BezierArcSteps: 50
     - Debug_AddStrokeAlpha: 0
     - Debug_BezierDistanceOffset: 0
     - Debug_DistanceRepeats: 0
