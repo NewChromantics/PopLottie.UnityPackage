@@ -29,8 +29,8 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - AntialiasRadius: 0.00083
-    - BezierArcSteps: 6
+    - AntialiasRadius: 0.00342
+    - BezierArcSteps: 10
     - Debug_AddStrokeAlpha: 0
     - Debug_BezierDistanceOffset: 0
     - Debug_DistanceRepeats: 0

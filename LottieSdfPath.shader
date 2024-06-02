@@ -69,6 +69,9 @@ float Debug_DistanceRepeats;
 #define DEBUG_DISTANCE	(Debug_DistanceRepeats >= 1.0)
 #define ENABLE_ANTIALIAS	true
 #define DISCARD_IF_TRANSPARENT	false
+#define DEBUG_DISTANCE_CLIP_OUTSIDE	false
+#define DEBUG_POLYGON	false
+
 			float AntialiasRadius;
 			int BezierArcSteps;
 			int RenderOnlyPath;
@@ -84,6 +87,8 @@ float Debug_DistanceRepeats;
 #define MAX_PATHPOINTS		500	//	for beziers these are in batches of 3... start control control
 			uniform float4 PathMetas[MAX_PATHMETAS];
 			uniform float4 PathPoints[MAX_PATHPOINTS];
+
+#define MAX_POLYGON_POINTS	50
 			
 			struct ShapeMeta_t
 			{
@@ -316,6 +321,8 @@ float Debug_DistanceRepeats;
 
 			float2 GetBezierPoint(float2 a,float2 b,float2 c,float2 d,float t)
 			{
+				//	brute force version for readability
+				//	todo: use the common optimised version (already in c#! GetBezierValue()
 				float2 ab = lerp( a, b, t );
 				float2 bc = lerp( b, c, t );
 				float2 cd = lerp( c, d, t );
@@ -325,46 +332,6 @@ float Debug_DistanceRepeats;
 				return abbc_bccd;
 			}
 
-float angle(float2 p) {
-    return atan2(p.y, p.x);
-}
-	float AngleDegreesOfVector(float2 v)
-	{
-		v = normalize(v);
-		//	-PI...PI
-		float Rad = atan2( v.y, v.x );
-		//	to 0..2pi (circle)
-		//if ( Rad < 0 )
-		//	Rad += 2 * UNITY_PI;
-		float Norm = Rad / (UNITY_PI*2.0f);
-		float Deg = Norm * 360.f;
-		return Deg;
-	}
-
-
-#define PI UNITY_PI
-
-float angle(float2 p0, float2 p1) 
-{
-    float a =  angle(p1) - angle(p0);
-    a = (a-PI) % (2.*PI);
-	a-=PI;
-    
-    return a;
-}
-	#define EPSILON	0.001f
-			//	what is the arc from a to b in angles
-			float DegreesBetweenPoints(float2 a,float2 b,float2 Pivot)
-			{
-				//	if we're right on a point (ie, an edge) we want to avoid NaNs
-				//	but I dont think we can calculate the angle...?
-				if ( distance(a,Pivot) < EPSILON )	return 0;
-				if ( distance(b,Pivot) < EPSILON )	return 0;
-
-				float angletoa = AngleDegreesOfVector( a - Pivot );
-				float angletob = AngleDegreesOfVector( b - Pivot );
-				return angletob - angletoa;
-			}
 
 			//	brute force method to test GetBezierPoint() is correct and to test against
 			Distance_t DistanceToCubic_Step(float2 Position,float2 a,float2 b,float2 c,float2 d)
@@ -375,8 +342,6 @@ float angle(float2 p0, float2 p1)
 				float2 FirstPos = GetBezierPoint( a, b, c, d, 0.0 );
 				float2 PrevPos = FirstPos;
 
-				float WindingAngle = 0;
-
 				for ( int i=1;	i<Steps;	i++ )
 				{
 					float t = float(i) / float(Steps-1);
@@ -385,20 +350,14 @@ float angle(float2 p0, float2 p1)
 					float2 PrevToNextDistance = DistanceToLine2( Position, PrevPos, NextPos );
 					Distance = min( Distance, PrevToNextDistance );
 
-					//if ( i < 3 )
-					WindingAngle += DegreesBetweenPoints( PrevPos, NextPos, Position );
-					
 					PrevPos = NextPos;
 				}
 	
-				//	gr: also need to include path closure for winding
-				{
-					//WindingAngle += DegreesBetweenPoints( PrevPos, FirstPos, Position );
-				}
+				
 
 				Distance_t DistanceAndWinding;
 				DistanceAndWinding.Distance = Distance;
-				DistanceAndWinding.Sign = WindingAngle > 0;
+				DistanceAndWinding.Sign = 1;
 				return DistanceAndWinding;
 			}
 
@@ -624,8 +583,11 @@ float angle(float2 p0, float2 p1)
 
 			float DistanceToShape(float2 Position,ShapeMeta_t ShapeMeta)
 			{
-				//	need to count how many shapes we're in to do odd/even holes 
-				int OverlapCount = 0;
+				//	need to count how many shapes we're in to do odd/even holes
+				//	unity says uint is faster for modulous - we could keep flipping a bool and avoid it entirely
+				uint OverlapCount = 0;
+				bool IsHole = false;
+
 				float Distance = NULL_DISTANCE;
 				for ( int p=0;	p<ShapeMeta.PathCount;	p++ )
 				{
@@ -633,26 +595,35 @@ float angle(float2 p0, float2 p1)
 
 					PathMeta_t PathMeta = GetPathMeta(PathIndex);
 					float PathDistance = DistanceToPath(Position,PathMeta);
+					
+					//	gr: this comparison with 0 may need to include stroke radius
 					if ( PathDistance <= 0 )
+					{
 						OverlapCount++;
+						IsHole = !IsHole;
+					}
 					Distance = min( Distance, PathDistance );
 				}
 
-				if ( (OverlapCount % 2) == 0 )
-				//if( OverlapCount > 1 )
+				//if ( (OverlapCount % 2) == 0 )
+				if ( !IsHole )
 				{
 					//	inside becomes hole
-					if ( Distance < 0 )	
+					if ( Distance < 0 )
+					{
+						//	gr: this breaks antialiasing as the signed distance now jumps
+						//		does this need to be something like (distance * -1) + Stroke?
 						Distance *= -1;
+					}
 				}
 
 				return Distance;
 			}
 
 
-			#define MAX_POINTS	50
+			//	unit test polygon test
 			//	https://www.shadertoy.com/view/wdBXRW
-			float sdPolygon(float2 v[MAX_POINTS],float2 p,int PointCount)
+			float sdPolygon(float2 v[MAX_POLYGON_POINTS],float2 p,int PointCount)
 			{
 				//const int num = v.length();
 				//float distsq = LengthSquared(p-v[0]);
@@ -674,10 +645,9 @@ float angle(float2 p0, float2 p1)
 
 			float GetSdfPathDistance(v2f Input)
 			{
-				#define DEBUG_POLYGON	false
 				if ( DEBUG_POLYGON )
 				{
-					float2 Points[MAX_POINTS];
+					float2 Points[MAX_POLYGON_POINTS];
 					Points[0] = float2(0.1,0.1);
 					Points[1] = float2(0.7,0.2);
 					Points[2] = float2(0.9,0.5);
@@ -753,7 +723,6 @@ float angle(float2 p0, float2 p1)
 				return Colour;
 			}
 
-#define DEBUG_DISTANCE_CLIP_OUTSIDE	false
 			fixed4 frag (v2f Input) : SV_Target
 			{
 				//	draw distance
