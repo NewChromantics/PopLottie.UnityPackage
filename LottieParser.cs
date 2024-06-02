@@ -1457,6 +1457,8 @@ namespace PopLottie
 	[Serializable]
 	struct Root
 	{
+		const float			DefaultFramesPerSecond = 60;
+
 		public TimeSpan	FrameToTime(FrameNumber Frame)
 		{
 			Frame -= FirstKeyFrame;
@@ -1466,6 +1468,8 @@ namespace PopLottie
 		public FrameNumber		TimeToFrame(TimeSpan Time,bool Looped)
 		{
 			var Duration = this.Duration.TotalSeconds;
+			if ( Duration <= 0 )
+				return 0;
 			var TimeSecs = Looped ? TimeSpan.FromSeconds(Time.TotalSeconds % Duration) : TimeSpan.FromSeconds(Mathf.Min((float)Time.TotalSeconds,(float)Duration));
 			var Frame = (TimeSecs.TotalSeconds * FramesPerSecond);
 			Frame += FirstKeyFrame;
@@ -1500,7 +1504,7 @@ namespace PopLottie
 
 		public string	v;	//"5.9.2"
 		public float	fr;
-		public float	FramesPerSecond => fr;
+		public float	FramesPerSecond => fr <= 0 ? DefaultFramesPerSecond : fr;
 		public float	ip;
 		public int		FirstKeyFrame => (int)ip;
 		public TimeSpan	FirstKeyFrameTime => FrameToTime(FirstKeyFrame);

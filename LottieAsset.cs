@@ -120,16 +120,22 @@ public class LottieAsset : ScriptableObject
 	//	reimport asset to wipe it
 	Texture2D					ThumbnailCache;
 	int							ThumbnailCacheFrameMs = 0;
+	
 	//	gr: can't save this (public) as it doesn't seem to serialise properly
-	PopLottie.Animation			AnimationCache;
+	//	gr: this caching also doesn't work between unity sessions as something is serialising...
+	//PopLottie.Animation			AnimationCache;
+	TimeSpan?					DurationCache;
 	
 	PopLottie.Animation GetCachedAnimation()
 	{
+		/*
 		if ( AnimationCache == null )
 		{
 			AnimationCache = PopLottie.Animation.Parse(Json);
 		}
 		return AnimationCache;
+		*/
+		return PopLottie.Animation.Parse(Json);
 	}
 	
 	public void ClearPreviewCache()
@@ -143,7 +149,11 @@ public class LottieAsset : ScriptableObject
 		{
 			if ( Animation.IsStatic )
 				return null;
-			return Animation.Duration;
+			if ( DurationCache == null )
+			{
+				DurationCache = Animation.Duration;
+			}
+			return DurationCache;
 		}
 		catch//(Exception e)
 		{
