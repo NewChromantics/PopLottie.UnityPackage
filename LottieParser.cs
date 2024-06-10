@@ -1575,6 +1575,12 @@ namespace PopLottie
 		
 		static public (Transformer,Rect) DoRootTransform(Rect AssetCanvasRect,Rect ContentRect,ScaleMode scaleMode)
 		{
+			if ( AssetCanvasRect.width <= 0 || AssetCanvasRect.height <= 0 )
+			{
+				Debug.LogWarning($"Vector with Canvas size {AssetCanvasRect.x},{AssetCanvasRect.y}->{AssetCanvasRect.width}x{AssetCanvasRect.height}. Reverting to 0,0,100,100");
+				AssetCanvasRect = new Rect(0,0,100,100);
+			}
+			
 			//	scale-to-canvas transformer
 			float ExtraScale = 1;	//	for debug zooming
 			var ScaleToCanvasWidth = (ContentRect.width / AssetCanvasRect.width)*ExtraScale;
