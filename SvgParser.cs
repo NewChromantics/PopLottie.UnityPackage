@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -25,12 +26,51 @@ namespace PopLottie
 		public override bool	HasTextLayers => false;
 		
 		SVGParser.SceneInfo		SvgScene;
+		Rect?					OverrideViewport = null;
 
 		public SvgAnimation(string FileContents)
 		{
 			using(TextReader ContentsReader = new StringReader(FileContents))
-			{ 
-				SvgScene = Unity.VectorGraphics.SVGParser.ImportSVG(ContentsReader,ViewportOptions.PreserveViewport);
+			{
+				//	default viewport with windowwidth/height just puts stuff in the wrong place, lets just parse viewbox ourselves
+				//	,windowWidth:100,windowHeight:100
+				SvgScene = Unity.VectorGraphics.SVGParser.ImportSVG(ContentsReader,ViewportOptions.OnlyApplyRootViewBox);
+				
+				//	gr: if the svg has no width/height, it comes through as 0,0,0,0 in the parser, even with a view box
+				//		unity's svg asset shrinks the rect to bounds of the output.
+				//		what we can do though, is just extract the viewbox and use that
+				if ( SvgScene.SceneViewport.width <= 0 || SvgScene.SceneViewport.height <= 0 )
+				{
+					//	<svg ... viewBox="0 0 9000.0001 699.99997">
+					var ViewboxPattern = "viewBox=\"([^\"]+)\"";
+					var Reg = new Regex(ViewboxPattern);
+					var Result = Reg.Match(FileContents);
+					if ( !Result.Success )
+					{
+						Debug.LogWarning($"Svg has no viewport (zero width/height) and found no viewbox");
+						return;
+					}
+					try
+					{
+						//if ( Result.Groups.Count != 5 )
+						//	throw new Exception($"Expected 5 group hits in viewbox regex");
+
+						var MatchString = Result.Groups[1].Value;
+						var ValueStrings = MatchString.Split(null);	//	gr: null here means whitespace
+						var ValueFloats = ValueStrings.Select( float.Parse ).ToArray();
+						var x = ValueFloats[0];
+						var y = ValueFloats[1];
+						var w = ValueFloats[2];
+						var h = ValueFloats[3];
+						//	gr: we cannot overwrite this!
+						this.OverrideViewport = new Rect(x,y,w,h);
+					}
+					catch(Exception e)
+					{
+						Debug.LogError($"Svg has no viewport (zero width/height) and error extracting viewbox; {e.Message}");
+						return;
+					}
+				}
 			}
 		}
 		
@@ -52,7 +92,8 @@ namespace PopLottie
 			
 		public override RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
 		{
-			var (RootTransform,OutputCanvasRect) = LottieAnimation.DoRootTransform( SvgScene.SceneViewport, ContentRect, scaleMode );
+			var AssetViewport = OverrideViewport ?? SvgScene.SceneViewport;
+			var (RootTransform,OutputCanvasRect) = LottieAnimation.DoRootTransform( AssetViewport, ContentRect, scaleMode );
 
 			var OutputFrame = new RenderCommands.AnimationFrame();
 			OutputFrame.CanvasRect = OutputCanvasRect;
