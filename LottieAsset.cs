@@ -211,7 +211,7 @@ public class LottieAsset : ScriptableObject
 		var Frame = Anim.Render(FrameTime,RenderRect,ScaleMode.ScaleToFit);
 
 		//	render with sdf
-		bool RenderWithSdfMethod = true;
+		bool RenderWithSdfMethod = false;
 		if ( RenderWithSdfMethod )
 		{
 			return RenderWithSdf( Frame, Width, Height, VectorScalar );
