@@ -164,6 +164,7 @@ namespace PopLottie
 			}
 			AddLayer(SvgScene.Scene.Root,RootTransform);
 
+#if false
 			if ( false )
 			{
 				var Center = Vector2.zero;
@@ -185,6 +186,7 @@ namespace PopLottie
 				TestShape.Style.StrokeWidth = StrokeWidth;
 				AddRenderShape( TestShape );
 			}
+			#endif
 			return OutputFrame;
 		}
 		
