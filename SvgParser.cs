@@ -89,6 +89,28 @@ namespace PopLottie
 		public override void Dispose()
 		{
 		}
+		
+		static AnimationLineCap GetLineCap(PathEnding ending)
+		{
+			switch (ending)
+			{
+				default:
+				case PathEnding.Chop:	return AnimationLineCap.Butt;
+				case PathEnding.Round:	return AnimationLineCap.Round;
+				case PathEnding.Square:	return AnimationLineCap.Square;
+			}
+		}
+		
+		static AnimationLineJoin GetLineJoin(PathEnding ending)
+		{
+			switch (ending)
+			{
+				default:
+				case PathEnding.Chop:	return AnimationLineJoin.Miter;
+				case PathEnding.Round:	return AnimationLineJoin.Round;
+				case PathEnding.Square:	return AnimationLineJoin.Bevel;
+			}
+		}
 			
 		public override RenderCommands.AnimationFrame Render(FrameNumber Frame, Rect ContentRect,ScaleMode scaleMode)
 		{
@@ -148,8 +170,19 @@ namespace PopLottie
 						}
 						else
 						{
-							OutShape.Style.FillColour = Color.magenta;
+							OutShape.Style.FillColour = null;
 						}
+						
+						if ( NodeShape.PathProps.Stroke is Stroke stroke )
+						{
+							var Thickness = stroke.HalfThickness * 2.0f;
+							Thickness = LayerTransform.LocalToWorldSize(Thickness);
+							OutShape.Style.StrokeWidth = Thickness;
+							OutShape.Style.StrokeColour = stroke.Color;
+							OutShape.Style.StrokeLineCap = GetLineCap(NodeShape.PathProps.Tail);
+							OutShape.Style.StrokeLineJoin = GetLineJoin(NodeShape.PathProps.Head);	//	should be corners really!
+						}
+						
 						AddRenderShape( OutShape );
 					}
 				}
