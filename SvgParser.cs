@@ -144,6 +144,8 @@ namespace PopLottie
 							//	https://docs.unity3d.com/Packages/com.unity.vectorgraphics@2.0/api/Unity.VectorGraphics.BezierPathSegment.html
 							for ( int s=0;	s<contour.Segments.Length;	s++ )
 							{
+								if ( s == contour.Segments.Length-1 && !contour.Closed )
+									continue;
 								var Segment = contour.Segments[s];
 								var NextSegment = contour.Segments[(s+1)%contour.Segments.Length];
 								//var Start = LayerTransform.LocalToWorldPosition(Segment.P0);
@@ -153,10 +155,7 @@ namespace PopLottie
 								var Point = new RenderCommands.BezierPoint(End,ControlIn,ControlOut);
 								Points.Add(Point);
 							}
-							if ( contour.Closed )
-							{
-								//	todo; handle this
-							}
+							
 							return new RenderCommands.Path(Points);
 						}
 						var OutShape = new RenderCommands.Shape();
