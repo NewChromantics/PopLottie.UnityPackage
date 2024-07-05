@@ -368,7 +368,9 @@ namespace PopLottie
 						IsStaticRect.y += 10;
 						IsStaticRect.width = 10;
 						IsStaticRect.height = 10;
-						RenderCommands.AnimationFrame.DrawRectX( context.painter2D, IsStaticRect, Color.red, 10 );
+						var RedSemi = Color.red;
+						RedSemi.a *= 0.5f;
+						RenderCommands.AnimationFrame.DrawRect( context.painter2D, IsStaticRect, RedSemi );
 					}
 				}
 			}
