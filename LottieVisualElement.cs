@@ -28,6 +28,9 @@ namespace PopLottie
 		//	current auto-redraw scheduler causing element to re-draw
 		IVisualElementScheduledItem	autoRedrawScheduler;
 
+		//	gr: this is an ugly variable name, but it matches all the reflection & UI-builder hints
+		const string ResourceFilenameKey = "resource-Filename";
+		readonly CustomStyleProperty<string> ResourceFilenameProperty = new CustomStyleProperty<string>($"--{ResourceFilenameKey}");
 		string		ResourceFilename;
 		public string	resourceFilename
 		{
@@ -155,7 +158,7 @@ namespace PopLottie
 			};
 			UxmlStringAttributeDescription resourceFilenameAttribute = new()
 			{
-				name = "resource-Filename",
+				name = ResourceFilenameKey,
 				defaultValue = ""
 			};
 			UxmlUnsignedIntAttributeDescription redrawIntervalMillisecondsAttribute = new()
@@ -183,11 +186,23 @@ namespace PopLottie
 			}
 		}
 
+		void OnCustomStyleResolved(CustomStyleResolvedEvent e)
+		{
+			ICustomStyle Styles = e.customStyle;
+			String NewResourceFilename;
+			if ( Styles.TryGetValue( ResourceFilenameProperty, out NewResourceFilename ) )
+			{
+				//Debug.Log($"Got custom resource-filename {NewResourceFilename}");
+				this.resourceFilename = NewResourceFilename;
+			}
+		}
+
 		public LottieVisualElement()
 		{
 			RegisterCallback<GeometryChangedEvent>(OnVisualElementDirty);
 			RegisterCallback<DetachFromPanelEvent>(c => { this.OnDetached(); });
 			RegisterCallback<AttachToPanelEvent>(c => { this.OnAttached(); });
+			RegisterCallback<CustomStyleResolvedEvent>(OnCustomStyleResolved);
 
 			generateVisualContent += GenerateVisualContent;
 			
