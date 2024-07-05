@@ -29,9 +29,9 @@ namespace PopLottie
 		IVisualElementScheduledItem	autoRedrawScheduler;
 
 		//	gr: this is an ugly variable name, but it matches all the reflection & UI-builder hints
-		const string ResourceFilenameKey = "resource-Filename";
+		const string	ResourceFilenameKey = "resource-Filename";
 		readonly CustomStyleProperty<string> ResourceFilenameProperty = new CustomStyleProperty<string>($"--{ResourceFilenameKey}");
-		string		ResourceFilename;
+		string			ResourceFilename;
 		public string	resourceFilename
 		{
 			get => ResourceFilename;
@@ -43,8 +43,10 @@ namespace PopLottie
 			}
 		}
 
-		bool		EnableDebug;
-		public bool	enableDebug
+		const string	EnableDebugKey = "enable-Debug";
+		readonly CustomStyleProperty<bool> EnableDebugProperty = new CustomStyleProperty<bool>($"--{EnableDebugKey}");
+		bool			EnableDebug;
+		public bool		enableDebug
 		{
 			get => EnableDebug;
 			set
@@ -153,7 +155,7 @@ namespace PopLottie
 		{
 			UxmlBoolAttributeDescription enableDebugAttribute = new()
 			{
-				name = "enable-Debug",
+				name = EnableDebugKey,
 				defaultValue = false
 			};
 			UxmlStringAttributeDescription resourceFilenameAttribute = new()
@@ -194,6 +196,12 @@ namespace PopLottie
 			{
 				//Debug.Log($"Got custom resource-filename {NewResourceFilename}");
 				this.resourceFilename = NewResourceFilename;
+			}
+			
+			bool NewEnableDebug;
+			if ( Styles.TryGetValue( EnableDebugProperty, out NewEnableDebug ) )
+			{
+				this.enableDebug = NewEnableDebug;
 			}
 		}
 
